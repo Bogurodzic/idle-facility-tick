@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../store/gameStore";
 import type { Encounter, Personnel, EncounterKind } from "../../store/scp087.types";
-import { ScrollArea } from "../ui/scroll-area";
 import { Button } from "../ui/button";
 import { PersonnelUpgradeModal } from "./PersonnelUpgradeModal";
 
@@ -76,7 +75,6 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
 
   const [t, setT] = useState(0);
   const raf = useRef<number | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   // animation/update loop (no drift; ties to store values)
   useEffect(() => {
@@ -197,18 +195,6 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
     return map;
   }, [activeEncounters, start]);
 
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  };
-
-  const scrollToTop = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = 0;
-    }
-  };
-
   // Measure monospace char size for overlay positioning
   const [cell, setCell] = useState({w: 8, h: 14});
   const preRef = useRef<HTMLPreElement | null>(null);
@@ -238,28 +224,8 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
              boxShadow: "inset 0 0 80px rgba(0,0,0,0.6)"
            }} />
       <div className="p-3">
-        {/* Scroll controls */}
-        <div className="flex gap-2 mb-2">
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={scrollToTop}
-            className="px-2 py-1 text-[10px] font-mono border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
-          >
-            TOP
-          </Button>
-          <Button 
-            size="sm" 
-            variant="outline" 
-            onClick={scrollToBottom}
-            className="px-2 py-1 text-[10px] font-mono border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
-          >
-            BOTTOM
-          </Button>
-        </div>
-
-        <ScrollArea className="h-64 w-full rounded border border-emerald-500/20">
-          <div ref={scrollRef} className="relative" style={{ width: containerWidth, height: containerHeight }}>
+        <div className="h-64 w-full rounded border border-emerald-500/20 overflow-hidden">
+          <div className="relative" style={{ width: containerWidth, height: containerHeight }}>
             <pre
               ref={preRef}
               style={{
@@ -302,7 +268,7 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
               </button>
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* LIGHT controls */}
         <div className="mt-3 flex items-center gap-4 text-emerald-200/80 text-[10px] font-mono">
