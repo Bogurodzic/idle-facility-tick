@@ -10,7 +10,15 @@ export interface Upgrade {
   cost: number;
   owned: number;
   effect: number;
+  tier?: 'equipment' | 'personnel' | 'research' | 'facility';
+  baseCost?: number;
   maxLevel?: number;
+  milestones?: number[];
+  synergyWith?: string[];
+  unlockCondition?: {
+    upgradeId: string;
+    level: number;
+  };
 }
 
 export interface SCP087State {
@@ -77,83 +85,170 @@ export interface GameState {
 }
 
 // Research & Development System for SCP-087
+// Enhanced Upgrade System with Tier-Based Scaling
 const initialSCP087Upgrades: Record<string, Upgrade> = {
-  // Advanced Equipment
+  // EQUIPMENT TIER - Frequent Purchases (1.07x scaling like Clicker Heroes)
   advancedBattery: {
     id: 'advancedBattery',
     name: 'Advanced Battery System',
-    description: 'Increases flashlight efficiency by +1% per level. Reduces power consumption and extends operational time.',
+    description: 'Military-grade power cells increase flashlight efficiency. Each level reduces drain by 1% and increases capacity.',
     cost: 5,
+    baseCost: 5,
     owned: 0,
-    effect: 0.01
+    effect: 0.01,
+    tier: 'equipment',
+    milestones: [5, 10, 25, 50, 100],
+    synergyWith: ['tacticalModules']
   },
-  emergencyBeacon: {
-    id: 'emergencyBeacon',
-    name: 'Emergency Beacon Network',
-    description: 'Reduces personnel loss risk by 15%',
-    cost: 120,
+  tacticalModules: {
+    id: 'tacticalModules',
+    name: 'Tactical Flashlight Modules',
+    description: 'Advanced beam focusing and multi-spectrum lighting. Unlocks special illumination modes.',
+    cost: 25,
+    baseCost: 25,
     owned: 0,
-    effect: 0.85
+    effect: 0.15,
+    tier: 'equipment',
+    milestones: [3, 7, 15],
+    synergyWith: ['advancedBattery']
   },
-  communicationArray: {
-    id: 'communicationArray',
-    name: 'Enhanced Communications',
-    description: 'Faster encounter detection and reporting',
-    cost: 150,
+  emergencyCache: {
+    id: 'emergencyCache',
+    name: 'Emergency Equipment Cache',
+    description: 'Redundant systems and backup equipment reduce equipment failure risk by 10% per level.',
+    cost: 45,
+    baseCost: 45,
     owned: 0,
-    effect: 1.3
+    effect: 0.10,
+    tier: 'equipment',
+    maxLevel: 10
   },
-  
-  // Personnel Enhancement Programs
+
+  // PERSONNEL TIER - Medium Purchases (1.15x scaling like Cookie Clicker)
   crossTraining: {
     id: 'crossTraining',
     name: 'Cross-Training Initiative',
-    description: 'Personnel gain bonuses from other roles (Level 2+)',
-    cost: 200,
+    description: 'Multi-role training program. Personnel gain +15% efficiency and can adapt to different situations.',
+    cost: 100,
+    baseCost: 100,
     owned: 0,
-    effect: 1.15
+    effect: 1.15,
+    tier: 'personnel',
+    milestones: [5, 10, 20],
+    synergyWith: ['psychologyProgram']
   },
-  safetyProtocols: {
-    id: 'safetyProtocols',
-    name: 'Enhanced Safety Protocols',
-    description: 'Global +10% survival rate for all personnel',
-    cost: 180,
+  psychologyProgram: {
+    id: 'psychologyProgram',
+    name: 'Psychological Conditioning',
+    description: 'Mental resilience training increases survival rate by 8% and reduces fear effects.',
+    cost: 150,
+    baseCost: 150,
     owned: 0,
-    effect: 1.1
+    effect: 1.08,
+    tier: 'personnel',
+    milestones: [3, 8, 15],
+    synergyWith: ['crossTraining', 'eliteRecruitment']
+  },
+  eliteRecruitment: {
+    id: 'eliteRecruitment',
+    name: 'Elite Recruitment Program',
+    description: 'Attract exceptional personnel. New recruits start with +25% stats and better specializations.',
+    cost: 200,
+    baseCost: 200,
+    owned: 0,
+    effect: 1.25,
+    tier: 'personnel',
+    maxLevel: 8,
+    synergyWith: ['psychologyProgram']
   },
   experienceAccelerator: {
     id: 'experienceAccelerator',
-    name: 'Experience Acceleration Program',
-    description: 'Personnel gain experience 40% faster',
-    cost: 250,
+    name: 'Accelerated Training Protocol',
+    description: 'Advanced training simulators. Personnel gain experience 40% faster with improved skill retention.',
+    cost: 300,
+    baseCost: 300,
     owned: 0,
-    effect: 1.4
+    effect: 1.40,
+    tier: 'personnel',
+    milestones: [5, 12, 25]
   },
-  
-  // Facility Research Projects
+
+  // RESEARCH TIER - Expensive Purchases (1.20x scaling)
   scpAnalysis: {
     id: 'scpAnalysis',
     name: 'SCP-087 Analysis Project',
-    description: 'Better encounter prediction and +25% PE from encounters',
-    cost: 300,
+    description: 'Deep study of anomalous properties. Each level improves encounter prediction and increases PE yield by 20%.',
+    cost: 500,
+    baseCost: 500,
     owned: 0,
-    effect: 1.25
+    effect: 1.20,
+    tier: 'research',
+    milestones: [3, 7, 15, 30],
+    synergyWith: ['anomalousPhysics']
   },
-  containmentOptimization: {
-    id: 'containmentOptimization',
-    name: 'Containment Optimization',
-    description: 'Reduces all upgrade costs by 15%',
-    cost: 400,
+  anomalousPhysics: {
+    id: 'anomalousPhysics',
+    name: 'Anomalous Physics Research',
+    description: 'Fundamental research into impossible geometries. Unlocks advanced containment techniques.',
+    cost: 800,
+    baseCost: 800,
     owned: 0,
-    effect: 0.85
+    effect: 1.30,
+    tier: 'research',
+    milestones: [2, 5, 10],
+    synergyWith: ['scpAnalysis', 'containmentBreakthrough'],
+    unlockCondition: { upgradeId: 'scpAnalysis', level: 3 }
   },
-  psychologyResearch: {
-    id: 'psychologyResearch',
-    name: 'Personnel Psychology Research',
-    description: 'Improved morale and performance for all personnel',
-    cost: 350,
+  containmentBreakthrough: {
+    id: 'containmentBreakthrough',
+    name: 'Containment Breakthrough',
+    description: 'Revolutionary containment protocols provide facility-wide bonuses and reduce all risks by 15%.',
+    cost: 1200,
+    baseCost: 1200,
     owned: 0,
-    effect: 1.2
+    effect: 0.85,
+    tier: 'research',
+    maxLevel: 5,
+    unlockCondition: { upgradeId: 'anomalousPhysics', level: 2 }
+  },
+
+  // FACILITY TIER - Very Expensive (1.25x scaling)
+  site19Integration: {
+    id: 'site19Integration',
+    name: 'Site-19 Integration Protocol',
+    description: 'Direct link to Foundation headquarters. Unlocks cross-SCP research bonuses and emergency support.',
+    cost: 2000,
+    baseCost: 2000,
+    owned: 0,
+    effect: 1.50,
+    tier: 'facility',
+    maxLevel: 3,
+    synergyWith: ['foundationNetwork'],
+    unlockCondition: { upgradeId: 'containmentBreakthrough', level: 2 }
+  },
+  foundationNetwork: {
+    id: 'foundationNetwork',
+    name: 'Foundation Network Access',
+    description: 'Classified database access provides global research bonuses and operational intelligence.',
+    cost: 3500,
+    baseCost: 3500,
+    owned: 0,
+    effect: 2.00,
+    tier: 'facility',
+    maxLevel: 2,
+    unlockCondition: { upgradeId: 'site19Integration', level: 1 }
+  },
+  o5Authorization: {
+    id: 'o5Authorization',
+    name: 'O5 Council Authorization',
+    description: 'Highest clearance level removes operational limitations and grants access to anomalous technologies.',
+    cost: 10000,
+    baseCost: 10000,
+    owned: 0,
+    effect: 3.00,
+    tier: 'facility',
+    maxLevel: 1,
+    unlockCondition: { upgradeId: 'foundationNetwork', level: 1 }
   }
 };
 
@@ -430,24 +525,51 @@ export const useGameStore = create<GameState & GameActions>()(
           
           if (!upgrade || state.scp087.paranoiaEnergy < upgrade.cost) return;
           
-          // Calculate new cost using progressive formula
+          // Check unlock conditions
+          if (upgrade.unlockCondition) {
+            const requiredUpgrade = state.scp087.upgrades[upgrade.unlockCondition.upgradeId];
+            if (!requiredUpgrade || requiredUpgrade.owned < upgrade.unlockCondition.level) {
+              return;
+            }
+          }
+          
+          // Check max level
+          if (upgrade.maxLevel && upgrade.owned >= upgrade.maxLevel) return;
+          
+          // Calculate new cost using tier-based scaling (based on Clicker Heroes/Cookie Clicker)
           const calculateNewCost = (currentLevel: number, baseUpgrade: Upgrade) => {
             const nextLevel = currentLevel + 1;
+            let multiplier: number;
             
-            if (upgradeId === 'advancedBattery') {
-              // Special progressive cost formula for flashlight
-              if (nextLevel <= 15) {
-                return Math.floor((5 + nextLevel) * Math.pow(1.07, nextLevel - 1));
-              } else {
-                return Math.floor(20 * Math.pow(1.07, nextLevel - 1));
-              }
-            } else {
-              // Standard 15% increase for other upgrades
-              return Math.floor(baseUpgrade.cost * 1.15);
+            switch (baseUpgrade.tier) {
+              case 'equipment':
+                // Clicker Heroes style - frequent purchases
+                multiplier = 1.07;
+                break;
+              case 'personnel':
+                // Cookie Clicker style - medium purchases
+                multiplier = 1.15;
+                break;
+              case 'research':
+                // Steeper scaling for expensive research
+                multiplier = 1.20;
+                break;
+              case 'facility':
+                // Very steep scaling for end-game upgrades
+                multiplier = 1.25;
+                break;
+              default:
+                multiplier = 1.15;
             }
+            
+            // Apply progressive cost formula
+            return Math.floor((baseUpgrade.baseCost || baseUpgrade.cost) * Math.pow(multiplier, nextLevel - 1));
           };
           
           set((state) => {
+            const newLevel = upgrade.owned + 1;
+            const newCost = calculateNewCost(upgrade.owned, upgrade);
+            
             const newState = {
               ...state,
               scp087: {
@@ -457,25 +579,35 @@ export const useGameStore = create<GameState & GameActions>()(
                   ...state.scp087.upgrades,
                   [upgradeId]: {
                     ...upgrade,
-                    owned: upgrade.owned + 1,
-                    cost: calculateNewCost(upgrade.owned, upgrade)
+                    owned: newLevel,
+                    cost: newCost
                   }
-                },
-                autoDescend: upgradeId === 'team' ? true : state.scp087.autoDescend
+                }
               }
             };
             
-            // Apply flashlight upgrade effects - now uses advancedBattery ID
+            // Apply upgrade effects with scaling and synergies
             if (upgradeId === 'advancedBattery') {
-              const efficiencyBonus = (upgrade.owned + 1) * 0.01; // +1% per level
-              const baseDrainRate = 6; // Original drain rate
-              const baseCapacity = 100; // Original capacity
+              const efficiencyBonus = newLevel * 0.01; // +1% per level
+              const baseDrainRate = 6;
+              const baseCapacity = 100;
+              
+              // Check for synergy bonuses
+              const tacticalModules = state.scp087.upgrades['tacticalModules']?.owned || 0;
+              const synergyBonus = tacticalModules > 0 ? 1 + (tacticalModules * 0.05) : 1;
               
               newState.scp087.flashlight = {
                 ...newState.scp087.flashlight,
-                capacity: Math.floor(baseCapacity * (1 + efficiencyBonus)),
-                drainPerSec: Math.max(1, baseDrainRate * (1 - efficiencyBonus))
+                capacity: Math.floor(baseCapacity * (1 + efficiencyBonus) * synergyBonus),
+                drainPerSec: Math.max(0.5, baseDrainRate * (1 - efficiencyBonus) / synergyBonus)
               };
+            }
+            
+            // Apply milestone bonuses
+            const milestones = upgrade.milestones || [];
+            if (milestones.includes(newLevel)) {
+              // Trigger milestone bonus (could add special effects here)
+              console.log(`Milestone reached for ${upgrade.name} at level ${newLevel}!`);
             }
             
             return newState;

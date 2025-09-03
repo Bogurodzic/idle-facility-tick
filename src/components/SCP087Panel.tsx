@@ -33,22 +33,33 @@ export const SCP087Panel = () => {
 
   const getIcon = (upgradeId: string) => {
     switch (upgradeId) {
-      // Advanced Equipment
+      // EQUIPMENT TIER
       case 'advancedBattery': return Battery;
-      case 'emergencyBeacon': return Radio;
-      case 'communicationArray': return Network;
+      case 'tacticalModules': return Flashlight;
+      case 'emergencyCache': return Shield;
       
-      // Personnel Enhancement Programs  
+      // PERSONNEL TIER  
       case 'crossTraining': return GraduationCap;
-      case 'safetyProtocols': return ShieldCheck;
+      case 'psychologyProgram': return Brain;
+      case 'eliteRecruitment': return Users;
       case 'experienceAccelerator': return Zap;
       
-      // Facility Research Projects
+      // RESEARCH TIER
       case 'scpAnalysis': return Search;
-      case 'containmentOptimization': return Settings;
-      case 'psychologyResearch': return Brain;
+      case 'anomalousPhysics': return TrendingDown;
+      case 'containmentBreakthrough': return ShieldCheck;
+      
+      // FACILITY TIER
+      case 'site19Integration': return Network;
+      case 'foundationNetwork': return Radio;
+      case 'o5Authorization': return Settings;
       
       // Legacy fallbacks (should not be needed)
+      case 'emergencyBeacon': return Radio;
+      case 'communicationArray': return Network;
+      case 'safetyProtocols': return ShieldCheck;
+      case 'containmentOptimization': return Settings;
+      case 'psychologyResearch': return Brain;
       case 'flashlight': return Flashlight;
       case 'training': return Shield;
       case 'rope': return TrendingDown;
@@ -84,19 +95,95 @@ export const SCP087Panel = () => {
             <div className="w-2 h-6 bg-red-600 rounded"></div>
             <h4 className="text-sm font-bold text-foreground tracking-wider">RESEARCH & DEVELOPMENT</h4>
             <div className="flex-1 h-px bg-gradient-to-r from-red-600/50 to-transparent"></div>
-            <div className="text-xs text-red-400 font-mono">CLASSIFIED</div>
+            <div className="text-xs text-red-400 font-mono">TIER SYSTEM</div>
           </div>
-          <div className="grid gap-3 border-l-2 border-red-600/20 pl-4">
-            {Object.entries(scp087.upgrades).map(([id, upgrade]) => (
-              <UpgradeCard
-                key={id}
-                upgrade={upgrade}
-                icon={getIcon(id)}
-                canAfford={scp087.paranoiaEnergy >= upgrade.cost}
-                onPurchase={() => purchaseSCP087Upgrade(id)}
-                formatCurrency={formatNumber}
-              />
-            ))}
+          
+          {/* Equipment Tier */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-amber-400 font-mono pl-2">
+              <div className="w-1 h-1 bg-amber-400 rounded-full"></div>
+              EQUIPMENT TIER - Frequent Upgrades (1.07x scaling)
+            </div>
+            <div className="grid gap-3 border-l-2 border-amber-600/20 pl-4">
+              {Object.entries(scp087.upgrades)
+                .filter(([_, upgrade]) => (upgrade as any).tier === 'equipment')
+                .map(([id, upgrade]) => (
+                  <UpgradeCard
+                    key={id}
+                    upgrade={upgrade}
+                    icon={getIcon(id)}
+                    canAfford={scp087.paranoiaEnergy >= upgrade.cost}
+                    onPurchase={() => purchaseSCP087Upgrade(id)}
+                    formatCurrency={formatNumber}
+                  />
+                ))}
+            </div>
+          </div>
+
+          {/* Personnel Tier */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-blue-400 font-mono pl-2">
+              <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
+              PERSONNEL TIER - Training Programs (1.15x scaling)
+            </div>
+            <div className="grid gap-3 border-l-2 border-blue-600/20 pl-4">
+              {Object.entries(scp087.upgrades)
+                .filter(([_, upgrade]) => (upgrade as any).tier === 'personnel')
+                .map(([id, upgrade]) => (
+                  <UpgradeCard
+                    key={id}
+                    upgrade={upgrade}
+                    icon={getIcon(id)}
+                    canAfford={scp087.paranoiaEnergy >= upgrade.cost}
+                    onPurchase={() => purchaseSCP087Upgrade(id)}
+                    formatCurrency={formatNumber}
+                  />
+                ))}
+            </div>
+          </div>
+
+          {/* Research Tier */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-purple-400 font-mono pl-2">
+              <div className="w-1 h-1 bg-purple-400 rounded-full"></div>
+              RESEARCH TIER - Advanced Studies (1.20x scaling)
+            </div>
+            <div className="grid gap-3 border-l-2 border-purple-600/20 pl-4">
+              {Object.entries(scp087.upgrades)
+                .filter(([_, upgrade]) => (upgrade as any).tier === 'research')
+                .map(([id, upgrade]) => (
+                  <UpgradeCard
+                    key={id}
+                    upgrade={upgrade}
+                    icon={getIcon(id)}
+                    canAfford={scp087.paranoiaEnergy >= upgrade.cost}
+                    onPurchase={() => purchaseSCP087Upgrade(id)}
+                    formatCurrency={formatNumber}
+                  />
+                ))}
+            </div>
+          </div>
+
+          {/* Facility Tier */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-xs text-red-400 font-mono pl-2">
+              <div className="w-1 h-1 bg-red-400 rounded-full"></div>
+              FACILITY TIER - Foundation Integration (1.25x scaling)
+            </div>
+            <div className="grid gap-3 border-l-2 border-red-600/20 pl-4">
+              {Object.entries(scp087.upgrades)
+                .filter(([_, upgrade]) => (upgrade as any).tier === 'facility')
+                .map(([id, upgrade]) => (
+                  <UpgradeCard
+                    key={id}
+                    upgrade={upgrade}
+                    icon={getIcon(id)}
+                    canAfford={scp087.paranoiaEnergy >= upgrade.cost}
+                    onPurchase={() => purchaseSCP087Upgrade(id)}
+                    formatCurrency={formatNumber}
+                  />
+                ))}
+            </div>
           </div>
         </div>
       </CardContent>

@@ -129,23 +129,79 @@ const UpgradeCardComponent = ({
 
   const visuals = useMemo(() => getUpgradeVisuals(), [upgrade.id, upgrade.owned]);
 
-  // Enhanced description with detailed bonuses
+  // Enhanced description with detailed bonuses and tier information
   const getEnhancedDescription = () => {
-    if (upgrade.id === 'advancedBattery') {
-      if (upgrade.owned > 0) {
+    const baseUpgrade = upgrade as any; // Type assertion for the enhanced upgrade system
+    const tier = baseUpgrade.tier || 'unknown';
+    const milestones = baseUpgrade.milestones || [];
+    const synergyWith = baseUpgrade.synergyWith || [];
+    const unlockCondition = baseUpgrade.unlockCondition;
+    const maxLevel = baseUpgrade.maxLevel;
+    
+    let description = upgrade.description;
+    
+    // Add current bonuses for owned upgrades
+    if (upgrade.owned > 0) {
+      description += `\n\nCurrent Status: Level ${upgrade.owned}`;
+      
+      // Specific upgrade bonuses
+      if (upgrade.id === 'advancedBattery') {
         const currentBonus = upgrade.owned;
         const nextBonus = currentBonus + 1;
         const efficiency = Math.round((1 - Math.pow(0.99, currentBonus)) * 100);
-        return `Advanced Battery System - Increases flashlight efficiency by 1% per level. 
-        
-Current Status: Level ${currentBonus} 
-• Battery Efficiency: +${currentBonus}% 
-• Power Consumption: -${efficiency}%
-• Next Level Bonus: +${nextBonus}% efficiency`;
+        description += `\n• Battery Efficiency: +${currentBonus}%\n• Power Consumption: -${efficiency}%`;
+        if (!maxLevel || upgrade.owned < maxLevel) {
+          description += `\n• Next Level: +${nextBonus}% efficiency`;
+        }
+      } else if (upgrade.id === 'tacticalModules') {
+        description += `\n• Beam Enhancement: +${upgrade.owned * 15}%`;
+        description += `\n• Synergy Bonus: +${upgrade.owned * 5}% to battery efficiency`;
+      } else if (upgrade.id === 'crossTraining') {
+        description += `\n• Personnel Efficiency: +${upgrade.owned * 15}%`;
+      } else if (upgrade.id === 'scpAnalysis') {
+        description += `\n• PE Yield Bonus: +${upgrade.owned * 20}%`;
       }
-      return upgrade.description;
+      
+      // Show max level indicator
+      if (maxLevel) {
+        description += `\n• Progress: ${upgrade.owned}/${maxLevel} levels`;
+      }
     }
-    return upgrade.description;
+    
+    // Add tier information
+    const tierColors = {
+      equipment: 'Equipment (Frequent)',
+      personnel: 'Personnel (Training)', 
+      research: 'Research (Advanced)',
+      facility: 'Facility (Integration)'
+    };
+    description += `\n\n🏷️ Tier: ${tierColors[tier as keyof typeof tierColors] || tier}`;
+    
+    // Add unlock condition
+    if (unlockCondition && upgrade.owned === 0) {
+      description += `\n🔒 Requires: ${unlockCondition.upgradeId} Level ${unlockCondition.level}`;
+    }
+    
+    // Add milestone information
+    if (milestones.length > 0) {
+      const nextMilestone = milestones.find(m => m > upgrade.owned);
+      if (nextMilestone) {
+        description += `\n⭐ Next Milestone: Level ${nextMilestone}`;
+      }
+      if (upgrade.owned > 0) {
+        const achievedMilestones = milestones.filter(m => m <= upgrade.owned);
+        if (achievedMilestones.length > 0) {
+          description += `\n✅ Milestones: ${achievedMilestones.join(', ')}`;
+        }
+      }
+    }
+    
+    // Add synergy information
+    if (synergyWith.length > 0) {
+      description += `\n🔗 Synergies: ${synergyWith.join(', ')}`;
+    }
+    
+    return description;
   };
 
   return (
