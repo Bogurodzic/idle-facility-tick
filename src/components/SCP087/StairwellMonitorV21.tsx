@@ -181,25 +181,25 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
       // Using a two-column pipe with a right wall: "│ … │ █"
       const has0871 = activeEncounters.some(e => e.kind === "087-1" && within(e.absoluteDepth, d));
       const hasAnom = activeEncounters.some(e => e.kind === "anomaly" && within(e.absoluteDepth, d));
-      const agentL = personnel.some(p => p.lane === "L" && within(p.absoluteDepth, d));
-      const agentR = personnel.some(p => p.lane === "R" && within(p.absoluteDepth, d));
+      // Check if any team member is in this depth range
+      const hasTeam = personnel.some(p => within(p.absoluteDepth, d));
 
       // Top connector - highlight if current depth
-      const topConnector = isCurrentDepth ? `  │ ┌═┴═┐ │ ${agentR ? "█" : " "}` : `  │ ┌─┴─┐ │ ${agentR ? "█" : " "}`;
+      const topConnector = isCurrentDepth ? `  │ ┌═┴═┐ │ ` : `  │ ┌─┴─┐ │ `;
       out.push({text: topConnector});
       
       // Label line (include personnel/encounter glyphs on left gutter)
       const leftGlyph =
         has0871 ? "☻" :
         hasAnom ? "◉" :
-        agentL ? "◇" :
+        hasTeam ? "▲" :  // Team indicator (single icon for all personnel)
         isCurrentDepth ? "►" :  // Current depth indicator
         " ";
       
       // Highlight current depth with different border
       const labelLine = isCurrentDepth ? 
-        `  │ ${leftGlyph}║${label}║${agentR ? "█" : " "}│` :
-        `  │ ${leftGlyph}│${label}│${agentR ? "█" : " "}│`;
+        `  │ ${leftGlyph}║${label}║ │` :
+        `  │ ${leftGlyph}│${label}│ │`;
       out.push({text: labelLine});
       
       // Bottom connector - highlight if current depth
@@ -215,11 +215,9 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
     out.push({text: `  BATT:  ${String(Math.round((f.charge / f.capacity) * 100)).padStart(3, " ")}%  │`});
     out.push({text: `  VIEW:  ${start}-${start + (TICKS_VISIBLE-1) * STEP} │`});
     const contacts = activeEncounters.length;
-    out.push({text: `PERSONNEL: ${personnel.length}/3`});
-    // Debug: show personnel positions
-    personnel.forEach(p => {
-      out.push({text: `${p.name.slice(0,8)}: D${Math.round(p.absoluteDepth)} ${p.active ? 'ACT' : 'IDL'}`});
-    });
+    const teamComposition = personnel.map(p => `${p.role.charAt(0)}-${p.level}`).join(" ");
+    out.push({text: `TEAM: ${teamComposition}`});
+    out.push({text: `DEPTH: ${Math.round(Math.min(...personnel.map(p => p.absoluteDepth)))}-${Math.round(Math.max(...personnel.map(p => p.absoluteDepth)))}`});
     out.push({text: `CONTACTS: ${contacts}`});
     if (contacts > 0) out.push({text: `║ ANOMALOUS READINGS ║`});
 

@@ -27,6 +27,7 @@ export interface SCP087State {
   personnel: Personnel[];
   activeEncounters: Encounter[];
   teamActive: boolean;
+  teamDeployed: boolean; // For UI consistency
   // Legacy arrays for backward compatibility
   oldPersonnel?: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
   oldActiveEncounters?: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
@@ -58,6 +59,7 @@ export interface SCP914State {
 
 export interface FacilityState {
   containmentPoints: number;
+  researchPoints: number;
   foundationKnowledge: number;
   globalUpgrades: Record<string, Upgrade>;
   lastSaveTime: number;
@@ -172,6 +174,7 @@ const defaultState: GameState = {
       },
     ],
     teamActive: false,
+    teamDeployed: false,
     activeEncounters: []
   },
   scp173: {
@@ -197,6 +200,7 @@ const defaultState: GameState = {
   },
   facility: {
     containmentPoints: 0,
+    researchPoints: 50,
     foundationKnowledge: 0,
     globalUpgrades: {},
     lastSaveTime: Date.now(),
@@ -250,6 +254,7 @@ export const useGameStore = create<GameState & GameActions>()(
             scp087: {
               ...state.scp087,
               teamActive: newTeamActive,
+              teamDeployed: newTeamActive,
               personnel: state.scp087.personnel.map(p => ({
                 ...p,
                 active: newTeamActive
@@ -266,7 +271,6 @@ export const useGameStore = create<GameState & GameActions>()(
 
         const costs = {
           level: 50 + (personnel.level * 25),
-          speed: 30 + (personnel.speed * 20),
           survival: 40 + (personnel.survivalRate * 50)
         };
 
@@ -284,8 +288,6 @@ export const useGameStore = create<GameState & GameActions>()(
               switch (upgradeType) {
                 case 'level':
                   return { ...p, level: p.level + 1, experience: 0 };
-                case 'speed':
-                  return { ...p, speed: p.speed + 0.1 };
                 case 'survival':
                   return { ...p, survivalRate: Math.min(0.99, p.survivalRate + 0.05) };
                 default:
@@ -507,6 +509,17 @@ export const useGameStore = create<GameState & GameActions>()(
           if (encounterIndex < 0) return state;
           
           const encounter = state.scp087.activeEncounters[encounterIndex];
+          
+          // Calculate bonuses from personnel
+          const personnel = state.scp087.personnel;
+          const scouts = personnel.filter(p => p.role === "Scout");
+          const scoutPEBonus = scouts.reduce((total, scout) => total + (scout.level * 0.1), 0); // +10% PE per scout level
+
+          // Add PE reward with scout bonus
+          const basePE = encounter.rewardPE;
+          const bonusPE = basePE * scoutPEBonus;
+          const totalPE = Math.round(basePE + bonusPE);
+          
           const newEncounters = [...state.scp087.activeEncounters];
           newEncounters.splice(encounterIndex, 1);
           
@@ -514,7 +527,7 @@ export const useGameStore = create<GameState & GameActions>()(
             ...state,
             scp087: {
               ...state.scp087,
-              paranoiaEnergy: state.scp087.paranoiaEnergy + encounter.rewardPE,
+              paranoiaEnergy: state.scp087.paranoiaEnergy + totalPE,
               currentDepth: encounter.kind === "087-1" 
                 ? Math.max(0, state.scp087.currentDepth - 13)
                 : state.scp087.currentDepth,
@@ -581,12 +594,23 @@ export const useGameStore = create<GameState & GameActions>()(
         set((prevState) => {
           const newState = { ...prevState };
           
-          // SCP-087 auto descend
+          // Calculate research personnel bonuses
+          const personnel = newState.scp087.personnel;
+          const researchers = personnel.filter(p => p.role === "Research");
+          const researchIdleBonus = researchers.reduce((total, researcher) => total + (researcher.level * 0.15), 0); // +15% idle PE per research level
+          
+          // SCP-087 auto descend with research bonus
           if (newState.scp087.autoDescend && newState.scp087.upgrades.team.owned > 0) {
             const autoEnergyGain = Math.floor(newState.scp087.currentDepth * 0.1 * newState.scp087.upgrades.team.owned);
-            newState.scp087.paranoiaEnergy += autoEnergyGain;
+            const bonusEnergyGain = autoEnergyGain * researchIdleBonus;
+            newState.scp087.paranoiaEnergy += autoEnergyGain + bonusEnergyGain;
             newState.scp087.currentDepth += newState.scp087.upgrades.team.owned;
           }
+          
+          // Generate idle research points (base rate + research bonus)
+          const baseResearchRate = 0.1;
+          const totalResearchRate = baseResearchRate * (1 + researchIdleBonus);
+          newState.facility.researchPoints += totalResearchRate;
           
           // Update personnel positions (legacy)
           if (newState.scp087.oldPersonnel) {

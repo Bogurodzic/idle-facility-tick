@@ -87,7 +87,7 @@ export const SCP087Panel = () => {
         </div>
 
         {/* Team Status Indicator */}
-        {scp087.teamActive && (
+        {scp087.teamDeployed && (
           <div className="space-y-2">
             <div className="text-sm text-muted-foreground">Exploration Team Deployed</div>
             <Progress value={((Date.now() % 5000) / 5000) * 100} className="h-2" />
@@ -99,11 +99,11 @@ export const SCP087Panel = () => {
           onClick={handleToggleTeam}
           className="w-full bg-scp-087 hover:bg-scp-087/80 text-black font-mono"
           disabled={recentEncounter}
-          variant={scp087.teamActive ? "destructive" : "default"}
+          variant={scp087.teamDeployed ? "destructive" : "default"}
         >
           {recentEncounter 
             ? "Recovering from Encounter..." 
-            : scp087.teamActive 
+            : scp087.teamDeployed 
               ? "RECALL TEAM" 
               : "DEPLOY TEAM"
           }

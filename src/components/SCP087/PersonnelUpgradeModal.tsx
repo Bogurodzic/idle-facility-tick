@@ -25,7 +25,6 @@ export const PersonnelUpgradeModal = ({ personnel, isOpen, onClose }: PersonnelU
   };
 
   const getLevelCost = () => 50 + (personnel.level * 25);
-  const getSpeedCost = () => Math.round(30 + (personnel.speed * 20));
   const getSurvivalCost = () => Math.round(40 + (personnel.survivalRate * 50));
   const getReplacementCost = () => 100;
 
@@ -40,9 +39,21 @@ export const PersonnelUpgradeModal = ({ personnel, isOpen, onClose }: PersonnelU
 
   const getRoleDescription = (role: string) => {
     switch (role) {
-      case "Scout": return "Fast movement, early encounter detection";
-      case "Research": return "Resource efficiency, data collection bonuses";
-      case "Handler": return "High survival rate, encounter resolution";
+      case "Scout": return "Encounter detection, PE bonus from encounters";
+      case "Research": return "Upgrade cost reduction, idle PE generation";
+      case "Handler": return "Enhanced survival, encounter resolution time";
+      default: return "";
+    }
+  };
+
+  const getRoleBonuses = (role: string, level: number) => {
+    switch (role) {
+      case "Scout": 
+        return `+${level * 10}% PE from encounters${level >= 3 ? ', Early detection' : ''}`;
+      case "Research": 
+        return `${level * 5}% upgrade cost reduction${level >= 2 ? `, +${level * 15}% idle PE` : ''}`;
+      case "Handler": 
+        return `+${level * 5}% survival rate${level >= 2 ? `, +${level * 20}% encounter time` : ''}`;
       default: return "";
     }
   };
@@ -88,17 +99,19 @@ export const PersonnelUpgradeModal = ({ personnel, isOpen, onClose }: PersonnelU
                 <div className="text-xs text-muted-foreground">Level</div>
               </div>
               <div className="bg-muted/30 p-2 rounded text-center">
-                <div className="text-lg font-bold">{personnel.speed.toFixed(1)}x</div>
-                <div className="text-xs text-muted-foreground">Speed</div>
-              </div>
-              <div className="bg-muted/30 p-2 rounded text-center">
                 <div className="text-lg font-bold">{Math.round(personnel.survivalRate * 100)}%</div>
                 <div className="text-xs text-muted-foreground">Survival</div>
               </div>
-              <div className="bg-muted/30 p-2 rounded text-center">
+              <div className="bg-muted/30 p-2 rounded text-center col-span-2">
                 <div className="text-lg font-bold">{formatNumber(personnel.experience)}</div>
                 <div className="text-xs text-muted-foreground">Experience</div>
               </div>
+            </div>
+
+            {/* Role Bonuses */}
+            <div className="bg-muted/20 p-2 rounded">
+              <div className="text-xs font-semibold text-muted-foreground mb-1">Role Bonuses</div>
+              <div className="text-sm">{getRoleBonuses(personnel.role, personnel.level)}</div>
             </div>
 
             {/* Experience Progress */}
@@ -127,23 +140,9 @@ export const PersonnelUpgradeModal = ({ personnel, isOpen, onClose }: PersonnelU
               >
                 <div className="flex items-center gap-2">
                   <ArrowUp className="w-4 h-4" />
-                  <span>Level Up</span>
+                  <span>Level Up (Enhance Role Bonuses)</span>
                 </div>
                 <span className="text-scp-087 font-mono">{formatNumber(getLevelCost())}</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => upgradePersonnel(personnel.id, "speed")}
-                disabled={scp087.paranoiaEnergy < getSpeedCost()}
-                className="flex items-center justify-between w-full"
-              >
-                <div className="flex items-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  <span>Increase Speed</span>
-                </div>
-                <span className="text-scp-087 font-mono">{formatNumber(getSpeedCost())}</span>
               </Button>
 
               <Button
