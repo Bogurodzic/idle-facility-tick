@@ -455,7 +455,8 @@ export const useGameStore = create<GameState & GameActions>()(
           const newPersonnel = state.scp087.personnel.map(p => {
             if (!p.active) return p;
             
-            const personnelSpeed = baseSpeed * p.speed;
+            // All personnel move at same base speed (removed individual speed multiplier)
+            const personnelSpeed = baseSpeed;
             return {
               ...p,
               absoluteDepth: p.absoluteDepth + personnelSpeed * dt,
@@ -463,16 +464,19 @@ export const useGameStore = create<GameState & GameActions>()(
             };
           });
           
-          // Update player depth to follow furthest personnel
-          const maxDepth = Math.max(...newPersonnel.map(p => p.absoluteDepth));
+          // Update player depth to follow team center (average depth of active personnel)
+          const activePersonnel = newPersonnel.filter(p => p.active);
+          const avgDepth = activePersonnel.length > 0 
+            ? activePersonnel.reduce((sum, p) => sum + p.absoluteDepth, 0) / activePersonnel.length
+            : Math.max(...newPersonnel.map(p => p.absoluteDepth));
           
           return {
             ...state,
             scp087: {
               ...state.scp087,
               personnel: newPersonnel,
-              currentDepth: maxDepth,
-              depth: maxDepth
+              currentDepth: avgDepth,
+              depth: avgDepth
             }
           };
         });
