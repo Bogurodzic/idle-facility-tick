@@ -27,6 +27,15 @@ export default function StairwellMonitorV21({ width = 29 }: Props) {
   const resolveEncounter = useGameStore(state => state.resolveEncounter);
   const cullExpiredEncounters = useGameStore(state => state.cullExpiredEncounters);
   
+  // Add defensive checks to prevent crashes during store initialization
+  console.log('StairwellMonitorV21 - scp087:', scp087);
+  console.log('StairwellMonitorV21 - flashlight:', scp087?.flashlight);
+  
+  if (!scp087 || !scp087.flashlight) {
+    console.log('StairwellMonitorV21 - Store not ready yet, showing loading state');
+    return <div className="p-4 text-emerald-400 font-mono">Initializing SCP-087 Terminal...</div>;
+  }
+  
   const depth = scp087.currentDepth;
   const f = scp087.flashlight;
 
