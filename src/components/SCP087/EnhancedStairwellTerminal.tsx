@@ -383,6 +383,32 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
               {formatNumber(scp087.currentDepth)}m
             </div>
           </div>
+          
+          {/* Flashlight Upgrade Status */}
+          {(() => {
+            const batteryUpgrade = scp087.upgrades.advancedBattery;
+            const upgradeLevel = batteryUpgrade?.owned || 0;
+            const efficiencyBonus = upgradeLevel * 1; // +1% per level
+            const baseCapacity = 100;
+            const baseDrainRate = 6;
+            const currentCapacity = Math.floor(baseCapacity * (1 + efficiencyBonus / 100));
+            const currentDrainRate = Math.max(1, baseDrainRate * (1 - efficiencyBonus / 100));
+            
+            return upgradeLevel > 0 ? (
+              <div className="bg-card border border-yellow-500/20 p-3 rounded">
+                <div className="text-xs text-muted-foreground">Flashlight Upgrades</div>
+                <div className="text-sm font-mono space-y-1">
+                  <div className="text-yellow-400">Level {upgradeLevel} (+{efficiencyBonus}% efficiency)</div>
+                  <div className="text-xs text-muted-foreground">
+                    Capacity: {currentCapacity} <span className="text-green-400">(+{currentCapacity - baseCapacity})</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Drain Rate: {currentDrainRate.toFixed(1)}/s <span className="text-green-400">({(baseDrainRate - currentDrainRate).toFixed(1)} saved)</span>
+                  </div>
+                </div>
+              </div>
+            ) : null;
+          })()}
         </div>
 
         {/* Team Controls */}
