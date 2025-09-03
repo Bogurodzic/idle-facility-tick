@@ -4,7 +4,8 @@ import type { Encounter, Personnel, EncounterKind } from "../../store/scp087.typ
 import { Button } from "../ui/button";
 import { PersonnelUpgradeModal } from "./PersonnelUpgradeModal";
 import { Progress } from "../ui/progress";
-import { Users, AlertTriangle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import { Users, AlertTriangle, Flashlight, FlashlightOff, Battery, Zap } from "lucide-react";
 
 /**
  * Enhanced SCP-087 Terminal Monitor v3.0
@@ -172,8 +173,10 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
     out.push({text: "╔════ SCP-087 TERMINAL v3.0 ════╗"});
     out.push({text: "║ █ SECURE ██ CONTAIN ██ PROTECT ║"});
     out.push({text: "╠════════════════════════════════╣"});
-    out.push({text: `║ FLASHLIGHT: [${battBar}] ║`});
-    out.push({text: `║ DEPTH: ${String(Math.round(depth)).padStart(6, " ")}m   TEAM: ${scp087.teamDeployed ? "ACTIVE" : "IDLE"}  ║`});
+    const flashStatus = f.on ? "◉ ON " : "○ OFF";
+    const lightEffect = f.on ? "████" : "░░░░";
+    out.push({text: `║ FLASHLIGHT: ${flashStatus} [${battBar}] ║`});
+    out.push({text: `║ BEAM: ${lightEffect}  DEPTH: ${String(Math.round(depth)).padStart(5, " ")}m  TEAM: ${scp087.teamDeployed ? "ACTIVE" : "IDLE"} ║`});
     out.push({text: "╠════════════════════════════════╣"});
     
     const within = (abs: number, tick: number) => {
@@ -231,9 +234,10 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
         `${progressCol} └───┬───┘ `;
       out.push({text: bottomConnector});
       
-      // Spine with battery indicator
+      // Spine with battery indicator and flashlight beam effect
       const spine = f.charge <= f.lowThreshold ? "░" : "║";
-      out.push({text: `${progressCol}     ${spine}     ${i < TICKS_VISIBLE - 1 ? "║" : "╨"}`});
+      const beamEffect = f.on && f.charge > 0 ? "≈" : " ";
+      out.push({text: `${progressCol}  ${beamEffect}  ${spine}  ${beamEffect}  ${i < TICKS_VISIBLE - 1 ? "║" : "╨"}`});
     }
 
     // Enhanced footer with team status
@@ -301,6 +305,80 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
     setTimeout(() => setIsDeploying(false), 1000);
   };
 
+  // Memoized flashlight button to prevent flickering
+  const flashlightButton = useMemo(() => {
+    const speedEffect = f.on ? 100 : 60;
+    const drainRate = f.on ? "6.0/s" : "0/s";
+    const rechargeRate = f.on ? "0/s" : "22/s";
+    const encountersActive = f.on ? "Active" : "None";
+    
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant={f.on ? "default" : "outline"}
+              onClick={() => toggleFlashlight()}
+              className={`font-mono text-xs transition-all duration-300 ${
+                f.on 
+                  ? "bg-terminal-green/20 text-terminal-green border-terminal-green/40 hover:bg-terminal-green/30" 
+                  : "border-muted-foreground/40 hover:border-terminal-green/40"
+              }`}
+            >
+              <div className="flex items-center gap-1">
+                {f.on ? <Flashlight className="w-3 h-3" /> : <FlashlightOff className="w-3 h-3" />}
+                <span>FLASHLIGHT: {f.on ? "ON" : "OFF"}</span>
+              </div>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <div className="space-y-1 text-xs">
+              <div className="font-mono text-terminal-green">FLASHLIGHT EFFECTS:</div>
+              <div>• Speed: {speedEffect}% {f.on ? "(Full)" : "(Reduced)"}</div>
+              <div>• Encounters: {encountersActive}</div>
+              <div>• Battery Drain: {drainRate}</div>
+              <div>• Recharge Rate: {rechargeRate}</div>
+              <div className="text-muted-foreground mt-2">
+                {f.on ? "Turn OFF to save battery but reduce speed" : "Turn ON for full speed and encounters"}
+              </div>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }, [f.on, f.charge, toggleFlashlight]);
+
+  // Memoized charge button with enhanced info
+  const chargeButton = useMemo(() => (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            size="sm"
+            variant="outline"  
+            onClick={() => rechargeFlashlightV2(1)}
+            className="font-mono text-xs hover:border-yellow-500/40 hover:text-yellow-400 transition-colors"
+            disabled={f.charge >= f.capacity}
+          >
+            <div className="flex items-center gap-1">
+              {f.charge < f.capacity ? <Zap className="w-3 h-3" /> : <Battery className="w-3 h-3" />}
+              <span>CHARGE</span>
+            </div>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <div className="text-xs space-y-1">
+            <div className="font-mono">BATTERY STATUS:</div>
+            <div>Current: {Math.round(f.charge)}% / {f.capacity}%</div>
+            <div>Rate: +{f.rechargePerSec}/s when OFF</div>
+            {f.charge >= f.capacity && <div className="text-green-400">Fully charged!</div>}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  ), [f.charge, f.capacity, f.rechargePerSec, rechargeFlashlightV2]);
+
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
@@ -310,31 +388,48 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   return (
     <div className="space-y-4">
       {/* Main Terminal Display */}
-      <div className="relative rounded-lg border-2 border-terminal-green/30 bg-terminal-bg overflow-hidden">
-        {/* CRT Effects */}
+      <div className={`relative rounded-lg border-2 transition-all duration-500 overflow-hidden ${
+        f.on 
+          ? "border-terminal-green/40 bg-terminal-bg shadow-[0_0_20px_hsl(var(--terminal-green)_/_0.3)]" 
+          : "border-terminal-green/20 bg-terminal-bg/80 shadow-[0_0_10px_hsl(var(--terminal-green)_/_0.1)]"
+      }`}>
+        {/* CRT Effects with dynamic lighting */}
         <div 
-          className="pointer-events-none absolute inset-0 opacity-60"
+          className={`pointer-events-none absolute inset-0 transition-opacity duration-500 ${
+            f.on ? "opacity-70" : "opacity-40"
+          }`}
           style={{
             background: `
-              radial-gradient(ellipse at center, transparent 0%, hsl(var(--terminal-green) / 0.05) 100%),
+              radial-gradient(ellipse at center, transparent 0%, hsl(var(--terminal-green) / ${f.on ? 0.08 : 0.03}) 100%),
               var(--scanlines)
             `,
             boxShadow: `
-              inset 0 0 100px hsl(var(--terminal-green) / 0.1),
-              0 0 20px hsl(var(--terminal-green) / 0.3)
+              inset 0 0 100px hsl(var(--terminal-green) / ${f.on ? 0.15 : 0.05}),
+              0 0 20px hsl(var(--terminal-green) / ${f.on ? 0.4 : 0.2})
             `
           }} 
         />
         
         <div className="p-4">
-          <div className="relative bg-black/50 rounded border border-terminal-green/20 p-2">
+          <div className={`relative rounded border p-2 transition-all duration-500 ${
+            f.on 
+              ? "bg-black/60 border-terminal-green/30" 
+              : "bg-black/80 border-terminal-green/15"
+          }`}>
             <pre
               ref={preRef}
-              className="font-mono text-xs leading-tight text-terminal-green terminal-glow whitespace-pre select-none"
+              className={`font-mono text-xs leading-tight whitespace-pre select-none transition-all duration-500 ${
+                f.on 
+                  ? "text-terminal-green terminal-glow" 
+                  : "text-terminal-green/60"
+              }`}
               style={{
                 fontFamily: "'JetBrains Mono', 'Consolas', 'Monaco', monospace",
                 fontSize: "11px",
                 lineHeight: "1.2",
+                textShadow: f.on 
+                  ? "0 0 5px currentColor, 0 0 10px currentColor" 
+                  : "0 0 2px currentColor"
               }}
             >
               {rows.map((r, i) => r.text).join("\n")}
@@ -451,24 +546,10 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
             }
           </Button>
 
-          {/* Flashlight Controls */}
+          {/* Enhanced Flashlight Controls */}
           <div className="grid grid-cols-2 gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => toggleFlashlight()}
-              className="font-mono text-xs"
-            >
-              LIGHT {f.on ? "OFF" : "ON"}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"  
-              onClick={() => rechargeFlashlightV2(1)}
-              className="font-mono text-xs"
-            >
-              CHARGE
-            </Button>
+            {flashlightButton}
+            {chargeButton}
           </div>
         </div>
       </div>
