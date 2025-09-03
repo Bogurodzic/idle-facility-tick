@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../store/gameStore";
 import type { Encounter, Personnel, EncounterKind } from "../../store/scp087.types";
 import { Button } from "../ui/button";
-import { PersonnelUpgradeModal } from "./PersonnelUpgradeModal";
 import { Progress } from "../ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { Users, AlertTriangle, Flashlight, FlashlightOff, Battery, Zap } from "lucide-react";
@@ -33,8 +32,9 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   const resolveEncounter = useGameStore(state => state.resolveEncounter);
   const cullExpiredEncounters = useGameStore(state => state.cullExpiredEncounters);
   const toggleTeamExploration = useGameStore(state => state.toggleTeamExploration);
+  const dClassInventory = useGameStore(state => state.dClassInventory);
+  const assignDClass = useGameStore(state => state.assignDClass);
   
-  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
   const [recentEncounter, setRecentEncounter] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
 
@@ -553,34 +553,33 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
         </div>
       </div>
 
-      {/* Personnel Panel */}
+      {/* D-Class Personnel Panel - Expendable Resources */}
       <div className="bg-card border border-terminal-green/20 rounded p-3">
-        <div className="text-xs text-muted-foreground mb-2 font-mono">PERSONNEL ROSTER:</div>
+        <div className="text-xs text-muted-foreground mb-2 font-mono">D-CLASS ASSIGNMENTS:</div>
         <div className="space-y-1">
           {personnel.map(p => (
-            <button
+            <div
               key={p.id}
-              onClick={() => setSelectedPersonnel(p)}
-              className="flex justify-between w-full text-xs font-mono text-muted-foreground hover:text-terminal-green hover:bg-terminal-green/10 rounded px-2 py-1 transition-colors border border-transparent hover:border-terminal-green/20"
+              className="flex justify-between w-full text-xs font-mono text-muted-foreground px-2 py-1 border border-terminal-green/10 rounded"
             >
               <span className="truncate">{p.name}</span>
               <span>{p.role}</span>
-              <span>L{p.level}</span>
-              <span>{Math.round(p.absoluteDepth)}m</span>
+              <span>Depth: {Math.round(p.absoluteDepth)}m</span>
               <span className={p.lane === "L" ? "text-blue-400" : "text-orange-400"}>{p.lane}</span>
-              <span className={p.active ? "text-terminal-green" : "text-gray-500"}>
-                {p.active ? "●" : "○"}
-              </span>
-            </button>
+              <span className="text-red-400">EXPENDABLE</span>
+            </div>
           ))}
         </div>
-      </div>
 
-      <PersonnelUpgradeModal
-        personnel={selectedPersonnel}
-        isOpen={!!selectedPersonnel}
-        onClose={() => setSelectedPersonnel(null)}
-      />
+        {/* D-Class Casualty Warnings */}
+        {dClassInventory.count < 3 && (
+          <div className="bg-red-950/20 border border-red-500/30 p-2 rounded mt-2">
+            <div className="text-xs text-red-400 font-mono">
+              WARNING: LOW D-CLASS INVENTORY ({dClassInventory.count} available)
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -65,6 +65,21 @@ export interface SCP914State {
   currentSetting: string;
 }
 
+export interface DClassInventory {
+  count: number;
+  capacity: number;
+  generationRate: number;
+  assigned: number;
+  mortalityRate: number;
+  totalCasualties: number;
+  totalRecruitments: number;
+}
+
+export interface DClassFacilityUpgrade {
+  cost: number;
+  level: number;
+}
+
 export interface FacilityState {
   containmentPoints: number;
   researchPoints: number;
@@ -80,6 +95,12 @@ export interface GameState {
   scp999: SCP999State;
   scp914: SCP914State;
   facility: FacilityState;
+  dClassInventory: DClassInventory;
+  dClassFacilityUpgrades: {
+    capacity: DClassFacilityUpgrade;
+    generation: DClassFacilityUpgrade;
+    survival: DClassFacilityUpgrade;
+  };
   gameStarted: boolean;
   tickInterval: number;
 }
@@ -288,40 +309,27 @@ const defaultState: GameState = {
     personnel: [
       { 
         id: "p1", 
-        name: "Operative Δ-7", 
+        name: "D-3142", 
         role: "Scout", 
         absoluteDepth: 0, 
         lane: "L",
         level: 1,
         experience: 0,
-        speed: 1.2,
-        survivalRate: 0.9,
+        speed: 1.0,
+        survivalRate: 0.6,
         active: false,
         status: "active"
       },
       { 
         id: "p2", 
-        name: "Tech A. Morse", 
+        name: "D-7853", 
         role: "Research", 
         absoluteDepth: 0, 
         lane: "R",
         level: 1,
         experience: 0,
-        speed: 0.8,
-        survivalRate: 0.7,
-        active: false,
-        status: "active"
-      },
-      { 
-        id: "p3", 
-        name: "Handler R-3", 
-        role: "Handler", 
-        absoluteDepth: 0, 
-        lane: "L",
-        level: 1,
-        experience: 0,
         speed: 1.0,
-        survivalRate: 0.95,
+        survivalRate: 0.5,
         active: false,
         status: "active"
       },
@@ -352,12 +360,26 @@ const defaultState: GameState = {
     currentSetting: '1:1'
   },
   facility: {
-    containmentPoints: 0,
+    containmentPoints: 100,
     researchPoints: 50,
     foundationKnowledge: 0,
     globalUpgrades: {},
     lastSaveTime: Date.now(),
     totalPlayTime: 0
+  },
+  dClassInventory: {
+    count: 10,
+    capacity: 50,
+    generationRate: 0.2,
+    assigned: 0,
+    mortalityRate: 0.4,
+    totalCasualties: 0,
+    totalRecruitments: 10
+  },
+  dClassFacilityUpgrades: {
+    capacity: { cost: 200, level: 0 },
+    generation: { cost: 150, level: 0 },
+    survival: { cost: 300, level: 0 }
   },
   gameStarted: false,
   tickInterval: 1000
@@ -380,6 +402,12 @@ type GameActions = {
   spawnEncounterAtDepth: (absoluteDepth: number, kind: EncounterKind) => void;
   resolveEncounter: (id: string) => void;
   cullExpiredEncounters: () => void;
+  
+  // D-Class Management Actions
+  recruitDClass: (quantity: number) => void;
+  assignDClass: (scpId: string, quantity: number) => void;
+  processDClassCasualties: (casualties: number) => void;
+  upgradeDClassFacility: (upgradeType: "capacity" | "generation" | "survival") => void;
   
   // SCP-173 Actions
   blink: () => void;
@@ -876,6 +904,104 @@ export const useGameStore = create<GameState & GameActions>()(
           });
         },
 
+        // D-Class Management Actions
+        recruitDClass: (quantity: number) => {
+          const state = get();
+          const singleCost = 50 + (state.dClassInventory.count * 10);
+          const totalCost = quantity === 1 
+            ? singleCost 
+            : Math.floor(singleCost * quantity * 0.8); // 20% bulk discount for 5+
+
+          if (state.facility.containmentPoints < totalCost) return;
+          if (state.dClassInventory.count + quantity > state.dClassInventory.capacity) return;
+
+          set((state) => ({
+            ...state,
+            facility: {
+              ...state.facility,
+              containmentPoints: state.facility.containmentPoints - totalCost
+            },
+            dClassInventory: {
+              ...state.dClassInventory,
+              count: state.dClassInventory.count + quantity,
+              totalRecruitments: state.dClassInventory.totalRecruitments + quantity
+            }
+          }));
+        },
+
+        assignDClass: (scpId: string, quantity: number) => {
+          const state = get();
+          if (state.dClassInventory.count < quantity) return;
+
+          set((state) => ({
+            ...state,
+            dClassInventory: {
+              ...state.dClassInventory,
+              count: state.dClassInventory.count - quantity,
+              assigned: state.dClassInventory.assigned + quantity
+            }
+          }));
+        },
+
+        processDClassCasualties: (casualties: number) => {
+          set((state) => ({
+            ...state,
+            dClassInventory: {
+              ...state.dClassInventory,
+              assigned: Math.max(0, state.dClassInventory.assigned - casualties),
+              totalCasualties: state.dClassInventory.totalCasualties + casualties
+            }
+          }));
+        },
+
+        upgradeDClassFacility: (upgradeType: "capacity" | "generation" | "survival") => {
+          const state = get();
+          const upgrade = state.dClassFacilityUpgrades[upgradeType];
+          
+          if (state.facility.containmentPoints < upgrade.cost) return;
+
+          set((state) => {
+            const newState = {
+              ...state,
+              facility: {
+                ...state.facility,
+                containmentPoints: state.facility.containmentPoints - upgrade.cost
+              },
+              dClassFacilityUpgrades: {
+                ...state.dClassFacilityUpgrades,
+                [upgradeType]: {
+                  cost: Math.floor(upgrade.cost * 1.5), // 50% cost increase per level
+                  level: upgrade.level + 1
+                }
+              }
+            };
+
+            // Apply upgrade effects
+            switch (upgradeType) {
+              case "capacity":
+                newState.dClassInventory = {
+                  ...state.dClassInventory,
+                  capacity: state.dClassInventory.capacity + 50
+                };
+                break;
+              case "generation":
+                newState.dClassInventory = {
+                  ...state.dClassInventory,
+                  generationRate: state.dClassInventory.generationRate + 0.5
+                };
+                break;
+              case "survival":
+                newState.dClassInventory = {
+                  ...state.dClassInventory,
+                  mortalityRate: Math.max(0.1, state.dClassInventory.mortalityRate - 0.05)
+                };
+                break;
+            }
+
+            return newState;
+          });
+        },
+
         // SCP-173 Actions
         blink: () => {
           set((state) => ({
@@ -930,6 +1056,15 @@ export const useGameStore = create<GameState & GameActions>()(
             const baseResearchRate = 0.1;
             const totalResearchRate = baseResearchRate * (1 + researchIdleBonus);
             newState.facility.researchPoints += totalResearchRate;
+
+            // D-Class auto-generation
+            const autoGenRate = newState.dClassInventory.generationRate / 60; // per second
+            if (newState.dClassInventory.count < newState.dClassInventory.capacity) {
+              newState.dClassInventory.count = Math.min(
+                newState.dClassInventory.capacity,
+                newState.dClassInventory.count + autoGenRate
+              );
+            }
             
             // Update personnel positions (legacy)
             if (newState.scp087.oldPersonnel) {

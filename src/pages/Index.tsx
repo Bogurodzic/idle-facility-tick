@@ -3,6 +3,7 @@ import { useGameStore } from "@/store/gameStore";
 import { FacilityHeader } from "@/components/FacilityHeader";
 import { SCP087Panel } from "@/components/SCP087Panel";
 import { GameTicker } from "@/components/GameTicker";
+import { DClassManagement } from "@/components/DClassManagement";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -94,41 +95,44 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen p-4 space-y-6 max-w-7xl mx-auto">
-      <GameTicker />
-      <FacilityHeader />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        <SCP087Panel />
+    <div className="min-h-screen p-4">
+      <div className="space-y-6 max-w-7xl mx-auto">
+        <GameTicker />
+        <FacilityHeader />
+        <DClassManagement />
         
-        {/* Placeholder panels for other SCPs */}
-        <Card className="facility-panel opacity-60">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Badge variant="destructive" className="scp-classification">
-                EUCLID
-              </Badge>
-              <CardTitle className="text-scp-173">SCP-173 - The Sculpture</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">Containment protocols initializing...</p>
-          </CardContent>
-        </Card>
-        
-        <Card className="facility-panel opacity-60">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="scp-classification">
-                SAFE
-              </Badge>
-              <CardTitle className="text-scp-999">SCP-999 - The Tickle Monster</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="text-center py-8">
-            <p className="text-muted-foreground">Containment protocols initializing...</p>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+          <SCP087Panel />
+          
+          {/* Placeholder panels for other SCPs */}
+          <Card className="facility-panel opacity-60">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Badge variant="destructive" className="scp-classification">
+                  EUCLID
+                </Badge>
+                <CardTitle className="text-scp-173">SCP-173 - The Sculpture</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="text-center py-8">
+              <p className="text-muted-foreground">Containment protocols initializing...</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="facility-panel opacity-60">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="scp-classification">
+                  SAFE
+                </Badge>
+                <CardTitle className="text-scp-999">SCP-999 - The Tickle Monster</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="text-center py-8">
+              <p className="text-muted-foreground">Containment protocols initializing...</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../store/gameStore";
 import type { Encounter, Personnel, EncounterKind } from "../../store/scp087.types";
 import { Button } from "../ui/button";
-import { PersonnelUpgradeModal } from "./PersonnelUpgradeModal";
 
 /**
  * SCP-087 MONITOR v2.1
@@ -29,7 +28,7 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
   const resolveEncounter = useGameStore(state => state.resolveEncounter);
   const cullExpiredEncounters = useGameStore(state => state.cullExpiredEncounters);
   
-  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
+  const [recentEncounter, setRecentEncounter] = useState<Encounter | null>(null);
   
   // Handle legacy store format - create working defaults
   const flashlight = scp087?.flashlight || {
@@ -343,35 +342,24 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
           </div>
         </div>
 
-        {/* Personnel display */}
+        {/* D-Class Personnel display - Expendable Resources */}
         <div className="mt-3 border-t border-emerald-500/20 pt-2">
-          <div className="text-emerald-200/80 text-[9px] font-mono mb-1">PERSONNEL:</div>
+          <div className="text-emerald-200/80 text-[9px] font-mono mb-1">D-CLASS ASSIGNMENTS:</div>
           <div className="space-y-1">
             {personnel.map(p => (
-              <button
+              <div
                 key={p.id}
-                onClick={() => setSelectedPersonnel(p)}
-                className="flex justify-between w-full text-[8px] font-mono text-emerald-300/60 hover:text-emerald-200 hover:bg-emerald-500/10 rounded px-1 py-0.5 transition-colors"
+                className="flex justify-between w-full text-[8px] font-mono text-emerald-300/60 px-1 py-0.5 border border-emerald-500/10 rounded"
               >
                 <span>{p.name}</span>
                 <span>{p.role}</span>
-                <span>L{p.level}</span>
                 <span>D:{Math.round(p.absoluteDepth)}</span>
-                <span className={p.lane === "L" ? "text-blue-400" : "text-orange-400"}>{p.lane}</span>
-                <span className={p.active ? "text-green-400" : "text-gray-500"}>
-                  {p.active ? "ACTIVE" : "IDLE"}
-                </span>
-              </button>
+                <span className="text-red-400">EXPENDABLE</span>
+              </div>
             ))}
           </div>
         </div>
       </div>
-
-      <PersonnelUpgradeModal
-        personnel={selectedPersonnel}
-        isOpen={!!selectedPersonnel}
-        onClose={() => setSelectedPersonnel(null)}
-      />
     </div>
   );
 }
