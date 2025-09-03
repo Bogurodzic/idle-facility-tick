@@ -178,7 +178,7 @@ export const UpgradeCard = ({
           
           <p className="text-xs text-muted-foreground mb-2">
             {upgrade.id === 'advancedBattery' && upgrade.owned > 0 
-              ? `${upgrade.description} (Currently: Level ${upgrade.owned} - +${upgrade.owned}% efficiency)`
+              ? `Increases flashlight efficiency by 1% per level. Currently: Level ${upgrade.owned} (+${upgrade.owned}% efficiency)`
               : upgrade.description}
           </p>
           
