@@ -3,8 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, TrendingDown, Shield, Users } from "lucide-react";
+import { AlertTriangle, TrendingDown, Shield, Users, Flashlight } from "lucide-react";
 import { useState, useEffect } from "react";
+import { StairwellVisualization } from "./SCP087/StairwellVisualization";
+import { UpgradeCard } from "./SCP087/UpgradeCard";
 
 export const SCP087Panel = () => {
   const { 
@@ -14,6 +16,7 @@ export const SCP087Panel = () => {
   } = useGameStore();
   
   const [recentEncounter, setRecentEncounter] = useState(false);
+  const [isDescending, setIsDescending] = useState(false);
 
   useEffect(() => {
     if (Date.now() - scp087.lastEncounter < 3000) {
@@ -31,12 +34,18 @@ export const SCP087Panel = () => {
 
   const getIcon = (upgradeId: string) => {
     switch (upgradeId) {
-      case 'flashlight': return <TrendingDown className="w-4 h-4" />;
-      case 'training': return <Shield className="w-4 h-4" />;
-      case 'rope': return <TrendingDown className="w-4 h-4" />;
-      case 'team': return <Users className="w-4 h-4" />;
-      default: return null;
+      case 'flashlight': return Flashlight;
+      case 'training': return Shield;
+      case 'rope': return TrendingDown;
+      case 'team': return Users;
+      default: return TrendingDown;
     }
+  };
+
+  const handleDescend = () => {
+    setIsDescending(true);
+    descendStairwell();
+    setTimeout(() => setIsDescending(false), 1000);
   };
 
   return (
@@ -57,6 +66,13 @@ export const SCP087Panel = () => {
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Stairwell Visualization */}
+        <StairwellVisualization 
+          currentDepth={scp087.currentDepth}
+          isDescending={isDescending}
+          encounterActive={recentEncounter}
+        />
+
         {/* Resources */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-muted/50 p-3 rounded">
@@ -83,7 +99,7 @@ export const SCP087Panel = () => {
 
         {/* Action Button */}
         <Button 
-          onClick={descendStairwell}
+          onClick={handleDescend}
           className="w-full bg-scp-087 hover:bg-scp-087/80 text-black font-mono"
           disabled={recentEncounter}
         >
@@ -93,29 +109,16 @@ export const SCP087Panel = () => {
         {/* Upgrades */}
         <div className="space-y-3">
           <h4 className="text-sm font-semibold text-muted-foreground">CONTAINMENT PROTOCOLS</h4>
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             {Object.entries(scp087.upgrades).map(([id, upgrade]) => (
-              <div key={id} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                <div className="flex items-center gap-2 flex-1">
-                  {getIcon(id)}
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{upgrade.name}</div>
-                    <div className="text-xs text-muted-foreground">{upgrade.description}</div>
-                    {upgrade.owned > 0 && (
-                      <div className="text-xs text-scp-087">Level {upgrade.owned}</div>
-                    )}
-                  </div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => purchaseSCP087Upgrade(id)}
-                  disabled={scp087.paranoiaEnergy < upgrade.cost}
-                  className="font-mono text-xs"
-                >
-                  {formatNumber(upgrade.cost)} PE
-                </Button>
-              </div>
+              <UpgradeCard
+                key={id}
+                upgrade={upgrade}
+                icon={getIcon(id)}
+                canAfford={scp087.paranoiaEnergy >= upgrade.cost}
+                onPurchase={() => purchaseSCP087Upgrade(id)}
+                formatCurrency={formatNumber}
+              />
             ))}
           </div>
         </div>
