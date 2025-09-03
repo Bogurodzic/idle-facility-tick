@@ -175,6 +175,8 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
     for (let i = 0; i < TICKS_VISIBLE; i++) {
       const d = start + i * STEP;
       const label = pad3(Math.max(0, d));
+      // Check if current depth falls within this tick range
+      const isCurrentDepth = within(depth, d);
       // columns: we keep a narrow frame like the sample
       // Using a two-column pipe with a right wall: "│ … │ █"
       const has0871 = activeEncounters.some(e => e.kind === "087-1" && within(e.absoluteDepth, d));
@@ -182,17 +184,28 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
       const agentL = personnel.some(p => p.lane === "L" && within(p.absoluteDepth, d));
       const agentR = personnel.some(p => p.lane === "R" && within(p.absoluteDepth, d));
 
-      // Top connector
-      out.push({text: `  │ ┌─┴─┐ │ ${agentR ? "█" : " "}`});
+      // Top connector - highlight if current depth
+      const topConnector = isCurrentDepth ? `  │ ┌═┴═┐ │ ${agentR ? "█" : " "}` : `  │ ┌─┴─┐ │ ${agentR ? "█" : " "}`;
+      out.push({text: topConnector});
+      
       // Label line (include personnel/encounter glyphs on left gutter)
       const leftGlyph =
         has0871 ? "☻" :
         hasAnom ? "◉" :
         agentL ? "◇" :
+        isCurrentDepth ? "►" :  // Current depth indicator
         " ";
-      out.push({text: `  │ ${leftGlyph}│${label}│${agentR ? "█" : " "}│`});
-      // Bottom connector
-      out.push({text: `  │  └─┬─┘  │`});
+      
+      // Highlight current depth with different border
+      const labelLine = isCurrentDepth ? 
+        `  │ ${leftGlyph}║${label}║${agentR ? "█" : " "}│` :
+        `  │ ${leftGlyph}│${label}│${agentR ? "█" : " "}│`;
+      out.push({text: labelLine});
+      
+      // Bottom connector - highlight if current depth
+      const bottomConnector = isCurrentDepth ? `  │  └═┬═┘  │` : `  │  └─┬─┘  │`;
+      out.push({text: bottomConnector});
+      
       // spine connector
       out.push({text: `  ${f.charge <= f.lowThreshold ? "░" : "│"}    │   ${i < TICKS_VISIBLE - 1 ? "│" : "╵"}`});
     }
