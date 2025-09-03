@@ -42,7 +42,7 @@ export const UpgradeCard = ({
     const level = upgrade.owned;
     
     switch (upgrade.id) {
-      case 'flashlight':
+      case 'advancedBattery':
         return {
           bgClass: level === 0 ? "bg-muted/30" : 
                   level < 3 ? "bg-gradient-to-br from-yellow-500/20 to-amber-600/20" :
@@ -163,18 +163,22 @@ export const UpgradeCard = ({
           </div>
           
           <p className="text-xs text-muted-foreground mb-2">
-            {upgrade.description}
+            {upgrade.id === 'advancedBattery' && upgrade.owned > 0 
+              ? `${upgrade.description} (Currently: +${upgrade.owned}% efficiency)`
+              : upgrade.description}
           </p>
           
           {/* Visual effect indicator for certain upgrades */}
-          {upgrade.owned > 0 && (upgrade.id === 'flashlight' || upgrade.id === 'training') && (
+          {upgrade.owned > 0 && (upgrade.id === 'advancedBattery' || upgrade.id === 'training') && (
             <div className="mb-2">
               <Progress 
-                value={(upgrade.owned / 10) * 100} 
+                value={upgrade.id === 'advancedBattery' ? Math.min((upgrade.owned / 20) * 100, 100) : (upgrade.owned / 10) * 100} 
                 className="h-1"
               />
               <div className="text-xs text-muted-foreground mt-1">
-                Efficiency: {Math.floor((upgrade.owned / 10) * 100)}%
+                {upgrade.id === 'advancedBattery' 
+                  ? `Efficiency: +${upgrade.owned}%` 
+                  : `Efficiency: ${Math.floor((upgrade.owned / 10) * 100)}%`}
               </div>
             </div>
           )}
