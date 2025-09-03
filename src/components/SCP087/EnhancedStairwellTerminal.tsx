@@ -5,6 +5,7 @@ import { Button } from "../ui/button";
 import { Progress } from "../ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { Users, AlertTriangle, Flashlight, FlashlightOff, Battery, Zap } from "lucide-react";
+import { EncounterProgressBar } from "./EncounterProgressBar";
 
 /**
  * Enhanced SCP-087 Terminal Monitor v3.0
@@ -33,6 +34,9 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   const spawnEncounterAtDepth = useGameStore(state => state.spawnEncounterAtDepth);
   const resolveEncounter = useGameStore(state => state.resolveEncounter);
   const cullExpiredEncounters = useGameStore(state => state.cullExpiredEncounters);
+  const startEncounterInteraction = useGameStore(state => state.startEncounterInteraction);
+  const updateEncounterProgress = useGameStore(state => state.updateEncounterProgress);
+  const abortEncounter = useGameStore(state => state.abortEncounter);
   const toggleTeamExploration = useGameStore(state => state.toggleTeamExploration);
   const dClassInventory = useGameStore(state => state.dClassInventory);
   const assignDClass = useGameStore(state => state.assignDClass);
@@ -139,6 +143,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
         rechargeFlashlightV2(dt * 0.7);
       }
       movePersonnel(dt);
+      updateEncounterProgress();
       cullExpiredEncounters();
 
       if (Math.random() < 0.025 && f.on) {
@@ -219,6 +224,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
       const encounter087 = activeEncounters.find(e => e.kind === "087-1" && within(e.absoluteDepth, d));
       const encounterAnom = activeEncounters.find(e => e.kind === "anomaly" && within(e.absoluteDepth, d));
       const teamMember = personnel.find(p => within(p.absoluteDepth, d));
+      const blockedPersonnel = personnel.filter(p => p.status === "blocked" && within(p.absoluteDepth, d));
 
       // Enhanced progress bar on left side - always visible, animated when active
       const progressCol = progressChar;
@@ -233,8 +239,16 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
       let annotations = "";
       let centerChar = " ";
       
-      // Priority: Show team ALWAYS, then add encounter info to annotations
-      if (hasTeam && teamMember) {
+      // Priority: Show blocked personnel, then team, then encounters
+      if (blockedPersonnel.length > 0) {
+        centerChar = "⚠";
+        annotations = ` ◄─── ${blockedPersonnel[0].name} BLOCKED`;
+        if (has0871) {
+          annotations += ` by SCP-087-1 (+${encounter087?.rewardPE || 150}PE)`;
+        } else if (hasAnom) {
+          annotations += ` by ANOMALY (+${encounterAnom?.rewardPE || 40}PE)`;
+        }
+      } else if (hasTeam && teamMember) {
         centerChar = "▲";
         annotations = ` ◄─── ${teamMember.name} (${teamMember.role})`;
         
@@ -246,10 +260,12 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
         }
       } else if (has0871) {
         centerChar = "☻";
-        annotations = ` ◄─── SCP-087-1! (+${encounter087?.rewardPE || 150}PE)`;
+        const inProgress = encounter087?.inProgress ? " [IN PROGRESS]" : "";
+        annotations = ` ◄─── SCP-087-1! (+${encounter087?.rewardPE || 150}PE)${inProgress}`;
       } else if (hasAnom) {
         centerChar = "◉";
-        annotations = ` ◄─── ANOMALY (+${encounterAnom?.rewardPE || 40}PE)`;
+        const inProgress = encounterAnom?.inProgress ? " [IN PROGRESS]" : "";
+        annotations = ` ◄─── ANOMALY (+${encounterAnom?.rewardPE || 40}PE)${inProgress}`;
       } else if (isCurrentDepth) {
         centerChar = "►";
         annotations = ` ◄─── CURRENT POSITION`;
@@ -291,9 +307,9 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
     return out;
   }, [depth, f.charge, f.capacity, activeEncounters, personnel, f.lowThreshold, battBar, start, scp087.teamDeployed, progressChar]);
 
-  // Enhanced overlay for clickable encounters
+  // Enhanced overlay for clickable encounters and progress bars
   const overlay = useMemo(() => {
-    const map: { id: string; x: number; y: number; label: string; color: string; type: string }[] = [];
+    const map: { id: string; x: number; y: number; label: string; color: string; type: string; encounter: Encounter }[] = [];
     const y0 = 6; // First tick starts after header
     
     activeEncounters.forEach(e => {
@@ -307,6 +323,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
           label: e.kind === "087-1" ? "☻" : "◉",
           color: e.kind === "087-1" ? "#ff4757" : "#ffa502",
           type: e.kind === "087-1" ? "SCP-087-1" : "Anomaly",
+          encounter: e
         });
       }
     });
@@ -478,28 +495,44 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
               {rows.map((r, i) => r.text).join("\n")}
             </pre>
 
-            {/* Clickable encounters overlay */}
+            {/* clickable encounters overlay */}
             {overlay.map(o => (
-              <button
-                key={o.id}
-                onClick={() => resolveEncounter(o.id)}
-                className="absolute hover:scale-150 transition-all duration-200 z-10 animate-pulse"
-                style={{
-                  left: o.x * cell.w + 8,
-                  top: o.y * cell.h + 8,
-                  color: o.color,
-                  fontFamily: "'JetBrains Mono', 'Consolas', 'Monaco', monospace",
-                  fontSize: "11px",
-                  textShadow: `0 0 10px ${o.color}, 0 0 20px ${o.color}`,
-                  lineHeight: "1.2",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                }}
-                title={`Click to resolve ${o.type} (+${o.type === "SCP-087-1" ? "150" : "40"}PE)`}
-              >
-                {o.label}
-              </button>
+              <div key={o.id}>
+                <button
+                  onClick={() => {
+                    if (!o.encounter.inProgress) {
+                      startEncounterInteraction(o.id);
+                    }
+                  }}
+                  disabled={o.encounter.inProgress}
+                  className={`absolute hover:scale-110 transition-transform duration-200 cursor-pointer font-mono font-bold text-sm z-10 ${
+                    o.encounter.inProgress ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  style={{
+                    left: o.x * cell.w,
+                    top: o.y * cell.h,
+                    color: o.color,
+                    textShadow: `0 0 8px ${o.color}80, 0 0 12px ${o.color}60`,
+                    transform: "translate(-50%, -50%)"
+                  }}
+                  title={
+                    o.encounter.inProgress 
+                      ? `${o.type} - IN PROGRESS` 
+                      : `${o.type} at ${Math.round(o.encounter.absoluteDepth)}m - Requires ${o.encounter.requiredDClass} D-Class (+${o.encounter.rewardPE}PE)`
+                  }
+                >
+                  {o.label}
+                </button>
+                
+                {/* Progress bar overlay */}
+                <EncounterProgressBar
+                  encounter={o.encounter}
+                  x={o.x}
+                  y={o.y}
+                  cellWidth={cell.w}
+                  cellHeight={cell.h}
+                />
+              </div>
             ))}
           </div>
         </div>

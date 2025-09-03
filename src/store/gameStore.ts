@@ -413,6 +413,9 @@ type GameActions = {
   spawnEncounterAtDepth: (absoluteDepth: number, kind: EncounterKind) => void;
   resolveEncounter: (id: string) => void;
   cullExpiredEncounters: () => void;
+  startEncounterInteraction: (encounterId: string) => boolean;
+  updateEncounterProgress: () => void;
+  abortEncounter: (encounterId: string) => void;
   
   // D-Class Management Actions
   recruitDClass: (quantity: number) => void;
@@ -820,11 +823,46 @@ export const useGameStore = create<GameState & GameActions>()(
             // Safety check - ensure personnel and flashlight exist
             if (!state.scp087.teamActive || !state.scp087.personnel || !state.scp087.flashlight) return state;
             
-            const baseSpeed = 5 * (state.scp087.flashlight.on ? 1 : 0.6); // Reduced from 18 to 5
+            const baseSpeed = 5 * (state.scp087.flashlight.on ? 1 : 0.6);
+            const { addDClassEvent } = get();
+            
             const newPersonnel = state.scp087.personnel.map(p => {
               if (!p.active) return p;
               
-              // All personnel move at same base speed (removed individual speed multiplier)
+              // Check for blocking encounters at personnel's current depth
+              const blockingEncounter = state.scp087.activeEncounters.find(e => 
+                e.blocking && 
+                !e.inProgress && 
+                Math.abs(e.absoluteDepth - p.absoluteDepth) < 25 // 25m range
+              );
+              
+              if (blockingEncounter && p.status !== "blocked") {
+                // Personnel hit a blocking encounter
+                addDClassEvent(`${p.name} halted at ${Math.round(blockingEncounter.absoluteDepth)}m - ${blockingEncounter.kind === "087-1" ? "SCP-087-1 manifestation" : "anomalous reading"} requires investigation`, 'warning', 'SCP-087');
+                return {
+                  ...p,
+                  status: "blocked" as const,
+                  blockedBy: blockingEncounter.id
+                };
+              }
+              
+              // If blocked, don't move
+              if (p.status === "blocked") {
+                // Check if blocking encounter is resolved
+                const stillBlocked = state.scp087.activeEncounters.find(e => e.id === p.blockedBy);
+                if (!stillBlocked) {
+                  // Encounter resolved, resume movement
+                  addDClassEvent(`${p.name} resuming descent from ${Math.round(p.absoluteDepth)}m - obstruction cleared`, 'info', 'SCP-087');
+                  return {
+                    ...p,
+                    status: "active" as const,
+                    blockedBy: undefined
+                  };
+                }
+                return p; // Stay blocked
+              }
+              
+              // Normal movement
               const personnelSpeed = baseSpeed;
               return {
                 ...p,
@@ -834,7 +872,7 @@ export const useGameStore = create<GameState & GameActions>()(
             });
             
             // Update player depth to follow team center (average depth of active personnel)
-            const activePersonnel = newPersonnel.filter(p => p.active);
+            const activePersonnel = newPersonnel.filter(p => p.active && p.status !== "blocked");
             const avgDepth = activePersonnel.length > 0 
               ? activePersonnel.reduce((sum, p) => sum + p.absoluteDepth, 0) / activePersonnel.length
               : Math.max(...newPersonnel.map(p => p.absoluteDepth));
@@ -862,8 +900,13 @@ export const useGameStore = create<GameState & GameActions>()(
                   x: 0, y: 0, // runtime overlay mapping fills these
                   kind,
                   absoluteDepth,
-                  rewardPE: kind === "087-1" ? 150 : 40,
-                  expiresAt: Date.now() + (kind === "087-1" ? 9000 : 6000),
+                  rewardPE: kind === "087-1" ? 200 + Math.floor(absoluteDepth / 100) * 50 : 40 + Math.floor(absoluteDepth / 200) * 20,
+                  expiresAt: Date.now() + (kind === "087-1" ? 15000 : 12000),
+                  blocking: true, // all encounters block progression
+                  inProgress: false,
+                  duration: kind === "087-1" ? 45000 + Math.floor(absoluteDepth / 100) * 15000 : 20000 + Math.floor(absoluteDepth / 200) * 10000,
+                  casualtyRate: kind === "087-1" ? 0.6 + (absoluteDepth / 1000) * 0.25 : 0.15 + (absoluteDepth / 1000) * 0.1,
+                  requiredDClass: kind === "087-1" ? Math.max(2, Math.floor(absoluteDepth / 300) + 2) : Math.max(1, Math.floor(absoluteDepth / 500) + 1)
                 }
               ]
             }
@@ -918,7 +961,18 @@ export const useGameStore = create<GameState & GameActions>()(
         cullExpiredEncounters: () => {
           set((state) => {
             const now = Date.now();
+            const { addDClassEvent } = get();
+            const expiredEncounters = state.scp087.activeEncounters.filter(e => e.expiresAt <= now);
             const validEncounters = state.scp087.activeEncounters.filter(e => e.expiresAt > now);
+            
+            // Generate events for expired encounters
+            expiredEncounters.forEach(e => {
+              if (e.kind === "087-1") {
+                addDClassEvent(`SCP-087-1 manifestation dissipated at ${Math.round(e.absoluteDepth)}m - investigation opportunity lost`, 'warning', 'SCP-087');
+              } else {
+                addDClassEvent(`Anomalous readings stabilized at ${Math.round(e.absoluteDepth)}m - collection window closed`, 'info', 'SCP-087');
+              }
+            });
             
             if (validEncounters.length === state.scp087.activeEncounters.length) return state;
             
@@ -930,6 +984,103 @@ export const useGameStore = create<GameState & GameActions>()(
               }
             };
           });
+        },
+
+        // Encounter interaction actions  
+        startEncounterInteraction: (encounterId: string) => {
+          const state = get();
+          const encounter = state.scp087.activeEncounters.find(e => e.id === encounterId);
+          if (!encounter || encounter.inProgress) return false;
+
+          const { addDClassEvent } = get();
+          const requiredDClass = encounter.requiredDClass || 1;
+          
+          if (state.dClassInventory.count < requiredDClass) {
+            addDClassEvent(`Insufficient D-Class for ${encounter.kind === "087-1" ? "investigation" : "collection"} - need ${requiredDClass}`, 'warning', 'SCP-087');
+            return false;
+          }
+
+          set((state) => ({
+            ...state,
+            dClassInventory: {
+              ...state.dClassInventory,
+              count: state.dClassInventory.count - requiredDClass,
+              assigned: state.dClassInventory.assigned + requiredDClass
+            },
+            scp087: {
+              ...state.scp087,
+              activeEncounters: state.scp087.activeEncounters.map(e => 
+                e.id === encounterId ? { ...e, inProgress: true, progressStarted: Date.now() } : e
+              )
+            }
+          }));
+
+          addDClassEvent(`${requiredDClass} D-Class deployed for ${encounter.kind === "087-1" ? "investigation" : "collection"} at ${Math.round(encounter.absoluteDepth)}m`, encounter.kind === "087-1" ? 'critical' : 'info', 'SCP-087');
+          return true;
+        },
+
+        updateEncounterProgress: () => {
+          set((state) => {
+            const now = Date.now();
+            const { processDClassCasualties, addDClassEvent } = get();
+            
+            const updatedEncounters = state.scp087.activeEncounters.map(encounter => {
+              if (!encounter.inProgress || !encounter.progressStarted || !encounter.duration) return encounter;
+
+              const elapsed = now - encounter.progressStarted;
+              if (elapsed >= encounter.duration) {
+                // Complete encounter
+                const finalReward = Math.floor(encounter.rewardPE * (1 + encounter.absoluteDepth / 1000));
+                
+                set((prevState) => ({
+                  ...prevState,
+                  scp087: {
+                    ...prevState.scp087,
+                    paranoiaEnergy: prevState.scp087.paranoiaEnergy + finalReward
+                  }
+                }));
+
+                addDClassEvent(`${encounter.kind === "087-1" ? "Investigation" : "Collection"} completed at ${Math.round(encounter.absoluteDepth)}m - ${finalReward}PE gained`, 'info', 'SCP-087');
+                return null; // Remove completed encounter
+              }
+              return encounter;
+            }).filter(e => e !== null);
+
+            if (updatedEncounters.length !== state.scp087.activeEncounters.length) {
+              return {
+                ...state,
+                scp087: {
+                  ...state.scp087,
+                  activeEncounters: updatedEncounters
+                }
+              };
+            }
+            return state;
+          });
+        },
+
+        abortEncounter: (encounterId: string) => {
+          const state = get();
+          const encounter = state.scp087.activeEncounters.find(e => e.id === encounterId);
+          if (!encounter || !encounter.inProgress) return;
+
+          const { addDClassEvent } = get();
+          const assignedDClass = encounter.requiredDClass || 1;
+          
+          set((state) => ({
+            ...state,
+            dClassInventory: {
+              ...state.dClassInventory,
+              count: state.dClassInventory.count + assignedDClass,
+              assigned: state.dClassInventory.assigned - assignedDClass
+            },
+            scp087: {
+              ...state.scp087,
+              activeEncounters: state.scp087.activeEncounters.filter(e => e.id !== encounterId)
+            }
+          }));
+
+          addDClassEvent(`Operation aborted at ${Math.round(encounter.absoluteDepth)}m - D-Class extracted`, 'warning', 'SCP-087');
         },
 
         // D-Class Management Actions
