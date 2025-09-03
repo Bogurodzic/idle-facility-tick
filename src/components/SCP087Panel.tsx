@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, TrendingDown, Shield, Users, Flashlight } from "lucide-react";
 import { useState, useEffect } from "react";
-import { StairwellVisualization } from "./SCP087/StairwellVisualization";
+import { EnhancedStairwellVisualization } from "./SCP087/EnhancedStairwellVisualization";
 import { UpgradeCard } from "./SCP087/UpgradeCard";
 
 export const SCP087Panel = () => {
@@ -66,11 +66,14 @@ export const SCP087Panel = () => {
       </CardHeader>
       
       <CardContent className="space-y-4">
-        {/* Stairwell Visualization */}
-        <StairwellVisualization 
+        {/* Enhanced Stairwell Visualization */}
+        <EnhancedStairwellVisualization 
           currentDepth={scp087.currentDepth}
           isDescending={isDescending}
           encounterActive={recentEncounter}
+          flashlightBattery={scp087.flashlightBattery}
+          personnel={scp087.personnel}
+          activeEncounters={scp087.activeEncounters}
         />
 
         {/* Resources */}

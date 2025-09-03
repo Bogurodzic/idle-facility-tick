@@ -19,6 +19,10 @@ export interface SCP087State {
   upgrades: Record<string, Upgrade>;
   autoDescend: boolean;
   lastEncounter: number;
+  flashlightBattery: number; // 0-100
+  flashlightRecharging: boolean;
+  personnel: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
+  activeEncounters: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
 }
 
 export interface SCP173State {
@@ -107,7 +111,11 @@ const defaultState: GameState = {
     encounterChance: 0.1,
     upgrades: initialSCP087Upgrades,
     autoDescend: false,
-    lastEncounter: 0
+    lastEncounter: 0,
+    flashlightBattery: 100,
+    flashlightRecharging: false,
+    personnel: [],
+    activeEncounters: []
   },
   scp173: {
     observationPoints: 0,
@@ -145,6 +153,7 @@ type GameActions = {
   // SCP-087 Actions
   descendStairwell: () => void;
   purchaseSCP087Upgrade: (upgradeId: string) => void;
+  rechargeFlashlight: () => void;
   
   // SCP-173 Actions
   blink: () => void;
@@ -186,12 +195,44 @@ export const useGameStore = create<GameState & GameActions>()(
           encounterTriggered = true;
         }
 
+        // Consume flashlight battery
+        const batteryDrain = Math.max(1, Math.floor(depthGain / 10));
+        const newBattery = Math.max(0, scp087.flashlightBattery - batteryDrain);
+        
+        // Spawn personnel randomly
+        const newPersonnel = [...scp087.personnel];
+        if (Math.random() < 0.3 && newPersonnel.length < 3) {
+          newPersonnel.push({
+            id: `person_${Date.now()}`,
+            position: Math.random() * Math.min(8, Math.floor(scp087.currentDepth / 10) + 3),
+            direction: Math.random() < 0.5 ? 'down' : 'up'
+          });
+        }
+        
+        // Spawn encounters
+        const newEncounters = [...scp087.activeEncounters];
+        if (encounterTriggered) {
+          const encounterType = Math.random() < 0.7 ? 'hostile' : 'neutral';
+          newEncounters.push({
+            id: `encounter_${Date.now()}`,
+            position: Math.random() * Math.min(8, Math.floor(scp087.currentDepth / 10) + 3),
+            type: encounterType,
+            symbol: encounterType === 'hostile' ? '◉' : '☻'
+          });
+        }
+        
+        // Clean up old encounters
+        const filteredEncounters = newEncounters.filter(() => Math.random() > 0.1);
+
         set((state) => ({
           scp087: {
             ...state.scp087,
             currentDepth: state.scp087.currentDepth + depthGain,
             paranoiaEnergy: state.scp087.paranoiaEnergy + energyGain,
-            lastEncounter: encounterTriggered ? Date.now() : state.scp087.lastEncounter
+            lastEncounter: encounterTriggered ? Date.now() : state.scp087.lastEncounter,
+            flashlightBattery: newBattery,
+            personnel: newPersonnel,
+            activeEncounters: filteredEncounters
           }
         }));
       },
@@ -217,6 +258,29 @@ export const useGameStore = create<GameState & GameActions>()(
             autoDescend: upgradeId === 'team' ? true : state.scp087.autoDescend
           }
         }));
+      },
+
+      rechargeFlashlight: () => {
+        const state = get();
+        if (state.scp087.flashlightRecharging) return;
+        
+        set((state) => ({
+          scp087: {
+            ...state.scp087,
+            flashlightRecharging: true
+          }
+        }));
+        
+        // Recharge over 3 seconds
+        setTimeout(() => {
+          set((state) => ({
+            scp087: {
+              ...state.scp087,
+              flashlightBattery: 100,
+              flashlightRecharging: false
+            }
+          }));
+        }, 3000);
       },
 
       // SCP-173 Actions
@@ -261,6 +325,19 @@ export const useGameStore = create<GameState & GameActions>()(
             const autoEnergyGain = Math.floor(newState.scp087.currentDepth * 0.1 * newState.scp087.upgrades.team.owned);
             newState.scp087.paranoiaEnergy += autoEnergyGain;
             newState.scp087.currentDepth += newState.scp087.upgrades.team.owned;
+          }
+          
+          // Update personnel positions
+          newState.scp087.personnel = newState.scp087.personnel.map(person => ({
+            ...person,
+            position: person.direction === 'down' 
+              ? person.position + 0.5 
+              : person.position - 0.5
+          })).filter(person => person.position >= 0 && person.position < 8);
+          
+          // Decay flashlight battery slightly over time
+          if (newState.scp087.flashlightBattery > 0 && !newState.scp087.flashlightRecharging) {
+            newState.scp087.flashlightBattery = Math.max(0, newState.scp087.flashlightBattery - 0.2);
           }
           
           // SCP-173 blink meter
