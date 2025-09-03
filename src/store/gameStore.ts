@@ -76,39 +76,84 @@ export interface GameState {
   tickInterval: number;
 }
 
-// Initial upgrades for SCP-087
+// Research & Development System for SCP-087
 const initialSCP087Upgrades: Record<string, Upgrade> = {
-  flashlight: {
-    id: 'flashlight',
-    name: 'Better Flashlight',
-    description: 'Increases Paranoia Energy per descent',
-    cost: 10,
+  // Advanced Equipment
+  advancedBattery: {
+    id: 'advancedBattery',
+    name: 'Advanced Battery System',
+    description: 'Increases flashlight capacity and efficiency by 25%',
+    cost: 75,
     owned: 0,
-    effect: 1.5
+    effect: 1.25
   },
-  training: {
-    id: 'training',
-    name: 'Psychological Training',
-    description: 'Reduces encounter chance',
-    cost: 25,
+  emergencyBeacon: {
+    id: 'emergencyBeacon',
+    name: 'Emergency Beacon Network',
+    description: 'Reduces personnel loss risk by 15%',
+    cost: 120,
     owned: 0,
-    effect: 0.9
+    effect: 0.85
   },
-  rope: {
-    id: 'rope',
-    name: 'Safety Rope',
-    description: 'Increases depth reached per descent',
-    cost: 50,
+  communicationArray: {
+    id: 'communicationArray',
+    name: 'Enhanced Communications',
+    description: 'Faster encounter detection and reporting',
+    cost: 150,
     owned: 0,
-    effect: 2
+    effect: 1.3
   },
-  team: {
-    id: 'team',
-    name: 'Exploration Team',
-    description: 'Automatically descends the stairwell',
-    cost: 100,
+  
+  // Personnel Enhancement Programs
+  crossTraining: {
+    id: 'crossTraining',
+    name: 'Cross-Training Initiative',
+    description: 'Personnel gain bonuses from other roles (Level 2+)',
+    cost: 200,
     owned: 0,
-    effect: 1
+    effect: 1.15
+  },
+  safetyProtocols: {
+    id: 'safetyProtocols',
+    name: 'Enhanced Safety Protocols',
+    description: 'Global +10% survival rate for all personnel',
+    cost: 180,
+    owned: 0,
+    effect: 1.1
+  },
+  experienceAccelerator: {
+    id: 'experienceAccelerator',
+    name: 'Experience Acceleration Program',
+    description: 'Personnel gain experience 40% faster',
+    cost: 250,
+    owned: 0,
+    effect: 1.4
+  },
+  
+  // Facility Research Projects
+  scpAnalysis: {
+    id: 'scpAnalysis',
+    name: 'SCP-087 Analysis Project',
+    description: 'Better encounter prediction and +25% PE from encounters',
+    cost: 300,
+    owned: 0,
+    effect: 1.25
+  },
+  containmentOptimization: {
+    id: 'containmentOptimization',
+    name: 'Containment Optimization',
+    description: 'Reduces all upgrade costs by 15%',
+    cost: 400,
+    owned: 0,
+    effect: 0.85
+  },
+  psychologyResearch: {
+    id: 'psychologyResearch',
+    name: 'Personnel Psychology Research',
+    description: 'Improved morale and performance for all personnel',
+    cost: 350,
+    owned: 0,
+    effect: 1.2
   }
 };
 
@@ -271,7 +316,7 @@ export const useGameStore = create<GameState & GameActions>()(
 
         const costs = {
           level: 50 + (personnel.level * 25),
-          survival: 40 + (personnel.survivalRate * 50)
+          survival: Math.round(40 + (personnel.survivalRate * 50))
         };
 
         const cost = costs[upgradeType as keyof typeof costs];

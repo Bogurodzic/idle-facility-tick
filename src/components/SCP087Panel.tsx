@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, TrendingDown, Shield, Users, Flashlight } from "lucide-react";
+import { AlertTriangle, TrendingDown, Shield, Users, Flashlight, Battery, Radio, Network, GraduationCap, ShieldCheck, Zap, Search, Settings, Brain } from "lucide-react";
 import { useState, useEffect } from "react";
 import { EnhancedStairwellVisualization } from "./SCP087/EnhancedStairwellVisualization";
 import { UpgradeCard } from "./SCP087/UpgradeCard";
@@ -33,6 +33,22 @@ export const SCP087Panel = () => {
 
   const getIcon = (upgradeId: string) => {
     switch (upgradeId) {
+      // Advanced Equipment
+      case 'advancedBattery': return Battery;
+      case 'emergencyBeacon': return Radio;
+      case 'communicationArray': return Network;
+      
+      // Personnel Enhancement Programs  
+      case 'crossTraining': return GraduationCap;
+      case 'safetyProtocols': return ShieldCheck;
+      case 'experienceAccelerator': return Zap;
+      
+      // Facility Research Projects
+      case 'scpAnalysis': return Search;
+      case 'containmentOptimization': return Settings;
+      case 'psychologyResearch': return Brain;
+      
+      // Legacy fallbacks (should not be needed)
       case 'flashlight': return Flashlight;
       case 'training': return Shield;
       case 'rope': return TrendingDown;
@@ -64,7 +80,7 @@ export const SCP087Panel = () => {
 
         {/* Upgrades */}
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-muted-foreground">CONTAINMENT PROTOCOLS</h4>
+          <h4 className="text-sm font-semibold text-muted-foreground">RESEARCH & DEVELOPMENT</h4>
           <div className="grid gap-3">
             {Object.entries(scp087.upgrades).map(([id, upgrade]) => (
               <UpgradeCard
