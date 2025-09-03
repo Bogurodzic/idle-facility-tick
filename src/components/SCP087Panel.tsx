@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, TrendingDown, Shield, Users, Flashlight, Battery, Radio, Network, GraduationCap, ShieldCheck, Zap, Search, Settings, Brain } from "lucide-react";
 import { useState, useEffect } from "react";
 import { EnhancedStairwellVisualization } from "./SCP087/EnhancedStairwellVisualization";
-import { UpgradeCard } from "./SCP087/UpgradeCard";
+import { SimpleUpgradeCard } from "./SCP087/SimpleUpgradeCard";
+import { OneTimeUpgradeIcon } from "./SCP087/OneTimeUpgradeIcon";
 import EnhancedStairwellTerminal from "./SCP087/EnhancedStairwellTerminal";
 
 export const SCP087Panel = () => {
@@ -24,6 +25,36 @@ export const SCP087Panel = () => {
       return () => clearTimeout(timer);
     }
   }, [scp087.lastEncounter]);
+
+  // Check if upgrade is unlocked
+  const isUpgradeUnlocked = (upgrade: any) => {
+    if (!upgrade.unlockCondition) return true;
+    
+    const requiredUpgrade = scp087.upgrades[upgrade.unlockCondition.upgradeId];
+    return requiredUpgrade && requiredUpgrade.owned >= upgrade.unlockCondition.level;
+  };
+
+  // Filter upgrades: only show unlocked ones
+  const getUnlockedUpgrades = (tier: string) => {
+    return Object.entries(scp087.upgrades)
+      .filter(([_, upgrade]) => (upgrade as any).tier === tier)
+      .filter(([_, upgrade]) => isUpgradeUnlocked(upgrade))
+      .filter(([_, upgrade]) => {
+        const maxLevel = (upgrade as any).maxLevel;
+        // For recurring upgrades (no maxLevel or maxLevel > 1), always show
+        if (!maxLevel || maxLevel > 1) return true;
+        // For one-time upgrades, only show if not purchased
+        return upgrade.owned < maxLevel;
+      });
+  };
+
+  // Get one-time upgrades that are unlocked but not purchased
+  const getOneTimeUpgrades = () => {
+    return Object.entries(scp087.upgrades)
+      .filter(([_, upgrade]) => (upgrade as any).maxLevel === 1)
+      .filter(([_, upgrade]) => isUpgradeUnlocked(upgrade))
+      .filter(([_, upgrade]) => upgrade.owned === 0);
+  };
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -89,26 +120,52 @@ export const SCP087Panel = () => {
         {/* Enhanced Terminal with Integrated Controls */}
         <EnhancedStairwellTerminal />
 
-        {/* Upgrades */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 mb-4">
+        {/* One-time Upgrades */}
+        {getOneTimeUpgrades().length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-6 bg-yellow-600 rounded"></div>
+              <h4 className="text-sm font-bold text-foreground tracking-wider">SPECIAL UPGRADES</h4>
+              <div className="flex-1 h-px bg-gradient-to-r from-yellow-600/50 to-transparent"></div>
+            </div>
+            <div className="flex gap-2 flex-wrap p-3 bg-muted/10 rounded-lg border border-muted/20">
+              {getOneTimeUpgrades().map(([id, upgrade]) => (
+                <OneTimeUpgradeIcon
+                  key={id}
+                  upgrade={upgrade}
+                  icon={getIcon(id)}
+                  canAfford={scp087.paranoiaEnergy >= upgrade.cost}
+                  onPurchase={() => purchaseSCP087Upgrade(id)}
+                  formatCurrency={formatNumber}
+                />
+              ))}
+              {getOneTimeUpgrades().length === 0 && (
+                <div className="text-xs text-muted-foreground text-center w-full py-2">
+                  No special upgrades available
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Regular Upgrades */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
             <div className="w-2 h-6 bg-red-600 rounded"></div>
-            <h4 className="text-sm font-bold text-foreground tracking-wider">RESEARCH & DEVELOPMENT</h4>
+            <h4 className="text-sm font-bold text-foreground tracking-wider">UPGRADES</h4>
             <div className="flex-1 h-px bg-gradient-to-r from-red-600/50 to-transparent"></div>
-            <div className="text-xs text-red-400 font-mono">TIER SYSTEM</div>
           </div>
           
           {/* Equipment Tier */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-amber-400 font-mono pl-2">
-              <div className="w-1 h-1 bg-amber-400 rounded-full"></div>
-              EQUIPMENT TIER - Frequent Upgrades (1.07x scaling)
-            </div>
-            <div className="grid gap-3 border-l-2 border-amber-600/20 pl-4">
-              {Object.entries(scp087.upgrades)
-                .filter(([_, upgrade]) => (upgrade as any).tier === 'equipment')
-                .map(([id, upgrade]) => (
-                  <UpgradeCard
+          {getUnlockedUpgrades('equipment').length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-amber-400 font-mono">
+                <div className="w-1 h-1 bg-amber-400 rounded-full"></div>
+                EQUIPMENT
+              </div>
+              <div className="grid gap-2">
+                {getUnlockedUpgrades('equipment').map(([id, upgrade]) => (
+                  <SimpleUpgradeCard
                     key={id}
                     upgrade={upgrade}
                     icon={getIcon(id)}
@@ -117,20 +174,20 @@ export const SCP087Panel = () => {
                     formatCurrency={formatNumber}
                   />
                 ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Personnel Tier */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-blue-400 font-mono pl-2">
-              <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
-              PERSONNEL TIER - Training Programs (1.15x scaling)
-            </div>
-            <div className="grid gap-3 border-l-2 border-blue-600/20 pl-4">
-              {Object.entries(scp087.upgrades)
-                .filter(([_, upgrade]) => (upgrade as any).tier === 'personnel')
-                .map(([id, upgrade]) => (
-                  <UpgradeCard
+          {getUnlockedUpgrades('personnel').length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-blue-400 font-mono">
+                <div className="w-1 h-1 bg-blue-400 rounded-full"></div>
+                PERSONNEL
+              </div>
+              <div className="grid gap-2">
+                {getUnlockedUpgrades('personnel').map(([id, upgrade]) => (
+                  <SimpleUpgradeCard
                     key={id}
                     upgrade={upgrade}
                     icon={getIcon(id)}
@@ -139,20 +196,20 @@ export const SCP087Panel = () => {
                     formatCurrency={formatNumber}
                   />
                 ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Research Tier */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-purple-400 font-mono pl-2">
-              <div className="w-1 h-1 bg-purple-400 rounded-full"></div>
-              RESEARCH TIER - Advanced Studies (1.20x scaling)
-            </div>
-            <div className="grid gap-3 border-l-2 border-purple-600/20 pl-4">
-              {Object.entries(scp087.upgrades)
-                .filter(([_, upgrade]) => (upgrade as any).tier === 'research')
-                .map(([id, upgrade]) => (
-                  <UpgradeCard
+          {getUnlockedUpgrades('research').length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-purple-400 font-mono">
+                <div className="w-1 h-1 bg-purple-400 rounded-full"></div>
+                RESEARCH
+              </div>
+              <div className="grid gap-2">
+                {getUnlockedUpgrades('research').map(([id, upgrade]) => (
+                  <SimpleUpgradeCard
                     key={id}
                     upgrade={upgrade}
                     icon={getIcon(id)}
@@ -161,20 +218,20 @@ export const SCP087Panel = () => {
                     formatCurrency={formatNumber}
                   />
                 ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Facility Tier */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-red-400 font-mono pl-2">
-              <div className="w-1 h-1 bg-red-400 rounded-full"></div>
-              FACILITY TIER - Foundation Integration (1.25x scaling)
-            </div>
-            <div className="grid gap-3 border-l-2 border-red-600/20 pl-4">
-              {Object.entries(scp087.upgrades)
-                .filter(([_, upgrade]) => (upgrade as any).tier === 'facility')
-                .map(([id, upgrade]) => (
-                  <UpgradeCard
+          {getUnlockedUpgrades('facility').length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-red-400 font-mono">
+                <div className="w-1 h-1 bg-red-400 rounded-full"></div>
+                FACILITY
+              </div>
+              <div className="grid gap-2">
+                {getUnlockedUpgrades('facility').map(([id, upgrade]) => (
+                  <SimpleUpgradeCard
                     key={id}
                     upgrade={upgrade}
                     icon={getIcon(id)}
@@ -183,8 +240,9 @@ export const SCP087Panel = () => {
                     formatCurrency={formatNumber}
                   />
                 ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </CardContent>
     </Card>
