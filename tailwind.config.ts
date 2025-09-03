@@ -61,7 +61,15 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				scp: {
+					'087': 'hsl(var(--scp-087))',
+					'173': 'hsl(var(--scp-173))',
+					'999': 'hsl(var(--scp-999))',
+					'914': 'hsl(var(--scp-914))'
+				},
+				containment: 'hsl(var(--containment))',
+				anomalous: 'hsl(var(--anomalous))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
