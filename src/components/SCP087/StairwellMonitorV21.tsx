@@ -264,7 +264,7 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
              boxShadow: "inset 0 0 80px rgba(0,0,0,0.6)"
            }} />
       <div className="p-3">
-        <div className="h-64 w-full rounded border border-emerald-500/20 overflow-hidden">
+        <div className="h-80 w-full rounded border border-emerald-500/20 overflow-hidden">
           <div className="relative" style={{ width: containerWidth, height: containerHeight }}>
             <pre
               ref={preRef}
