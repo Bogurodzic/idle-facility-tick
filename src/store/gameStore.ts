@@ -468,35 +468,72 @@ export const useGameStore = create<GameState & GameActions>()(
 
         // SCP-087 Actions - Personnel Management
         toggleTeamExploration: () => {
-          set((state) => {
-            // Safety check - ensure personnel exists
-            if (!state.scp087.personnel || !Array.isArray(state.scp087.personnel)) {
-              console.error("Personnel not initialized, cannot toggle team");
-              return state;
+          const state = get();
+          const { addDClassEvent } = state;
+          
+          // Safety check - ensure personnel exists
+          if (!state.scp087.personnel || !Array.isArray(state.scp087.personnel)) {
+            console.error("Personnel not initialized, cannot toggle team");
+            return;
+          }
+          
+          const newTeamActive = !state.scp087.teamActive;
+          
+          if (newTeamActive) {
+            // Deploying team - require minimum D-Class
+            const requiredDClass = 4; // Minimum team requirement
+            
+            if (state.dClassInventory.count < requiredDClass) {
+              addDClassEvent(`Deployment failed - need ${requiredDClass} D-Class for exploration team (have ${state.dClassInventory.count})`, 'warning', 'SCP-087');
+              return;
             }
             
-            const newTeamActive = !state.scp087.teamActive;
-            const { addDClassEvent } = get();
-            
-            if (newTeamActive) {
-              addDClassEvent("D-Class exploration team deployed to SCP-087 stairwell", 'info', 'SCP-087');
-            } else {
-              addDClassEvent("D-Class exploration team recalled from SCP-087", 'warning', 'SCP-087');
-            }
-            
-            return {
+            // Consume D-Class for deployment
+            set((state) => ({
               ...state,
+              dClassInventory: {
+                ...state.dClassInventory,
+                count: state.dClassInventory.count - requiredDClass,
+                assigned: state.dClassInventory.assigned + requiredDClass
+              },
               scp087: {
                 ...state.scp087,
-                teamActive: newTeamActive,
-                teamDeployed: newTeamActive,
+                teamActive: true,
+                teamDeployed: true,
                 personnel: state.scp087.personnel.map(p => ({
                   ...p,
-                  active: newTeamActive
+                  active: true,
+                  assignedDClass: Math.ceil(requiredDClass / state.scp087.personnel.length)
                 }))
               }
-            };
-          });
+            }));
+            
+            addDClassEvent(`${requiredDClass} D-Class deployed to SCP-087 exploration teams`, 'critical', 'SCP-087');
+          } else {
+            // Recalling team - return surviving D-Class
+            const survivingDClass = state.dClassInventory.assigned;
+            
+            set((state) => ({
+              ...state,
+              dClassInventory: {
+                ...state.dClassInventory,
+                count: state.dClassInventory.count + survivingDClass,
+                assigned: 0
+              },
+              scp087: {
+                ...state.scp087,
+                teamActive: false,
+                teamDeployed: false,
+                personnel: state.scp087.personnel.map(p => ({
+                  ...p,
+                  active: false,
+                  assignedDClass: 0
+                }))
+              }
+            }));
+            
+            addDClassEvent(`Exploration teams recalled - ${survivingDClass} D-Class returned to holding`, 'warning', 'SCP-087');
+          }
         },
 
         upgradePersonnel: (personnelId: string, upgradeType: string) => {
@@ -1028,8 +1065,37 @@ export const useGameStore = create<GameState & GameActions>()(
               if (!encounter.inProgress || !encounter.progressStarted || !encounter.duration) return encounter;
 
               const elapsed = now - encounter.progressStarted;
+              const progress = elapsed / encounter.duration;
+              
+              // Generate progressive danger events during long investigations
+              if (encounter.kind === "087-1" && progress > 0.3 && progress < 0.9 && Math.random() < 0.1) {
+                const progressEvents = [
+                  `D-Class report hostile entity manifestation during investigation at ${Math.round(encounter.absoluteDepth)}m`,
+                  `Equipment failure cascade - multiple systems offline during encounter at ${Math.round(encounter.absoluteDepth)}m`,
+                  `Subject psychological breakdown reported during SCP-087-1 investigation at ${Math.round(encounter.absoluteDepth)}m`,
+                  `Emergency protocols activated - investigation team requesting immediate extraction at ${Math.round(encounter.absoluteDepth)}m`
+                ];
+                
+                const randomEvent = progressEvents[Math.floor(Math.random() * progressEvents.length)];
+                addDClassEvent(randomEvent, 'critical', 'SCP-087');
+              }
+              
+              // Process casualties during investigation (higher chance for red encounters)
+              if (progress > 0.5 && Math.random() < (encounter.casualtyRate || 0) * 0.3) {
+                const casualties = Math.min(encounter.requiredDClass || 1, 1);
+                processDClassCasualties(casualties);
+                
+                addDClassEvent(`${casualties} D-Class casualties during ${encounter.kind === "087-1" ? "investigation" : "collection"} at ${Math.round(encounter.absoluteDepth)}m`, 'critical', 'SCP-087');
+              }
+              
               if (elapsed >= encounter.duration) {
-                // Complete encounter
+                // Complete encounter with final casualty check
+                const finalCasualties = Math.random() < (encounter.casualtyRate || 0) ? 1 : 0;
+                if (finalCasualties > 0) {
+                  processDClassCasualties(finalCasualties);
+                  addDClassEvent(`Final casualty during encounter completion at ${Math.round(encounter.absoluteDepth)}m`, 'critical', 'SCP-087');
+                }
+                
                 const finalReward = Math.floor(encounter.rewardPE * (1 + encounter.absoluteDepth / 1000));
                 
                 set((prevState) => ({
@@ -1040,7 +1106,7 @@ export const useGameStore = create<GameState & GameActions>()(
                   }
                 }));
 
-                addDClassEvent(`${encounter.kind === "087-1" ? "Investigation" : "Collection"} completed at ${Math.round(encounter.absoluteDepth)}m - ${finalReward}PE gained`, 'info', 'SCP-087');
+                addDClassEvent(`${encounter.kind === "087-1" ? "Investigation" : "Collection"} completed at ${Math.round(encounter.absoluteDepth)}m - ${finalReward}PE gained`, encounter.kind === "087-1" ? 'warning' : 'info', 'SCP-087');
                 return null; // Remove completed encounter
               }
               return encounter;
@@ -1313,11 +1379,73 @@ export const useGameStore = create<GameState & GameActions>()(
               addDClassEvent(randomMessage, 'info');
             }
 
-            // Simulate D-Class casualties during active exploration
-            if (newState.scp087.teamActive && newState.dClassInventory.assigned > 0 && Math.random() < 0.005) {
-              const { processDClassCasualties } = get();
-              const casualtyCount = Math.min(1, newState.dClassInventory.assigned); // Usually 1 casualty at a time
-              processDClassCasualties(casualtyCount);
+            // Enhanced D-Class casualty system during active exploration
+            if (newState.scp087.teamActive && newState.dClassInventory.assigned > 0) {
+              const { processDClassCasualties, addDClassEvent } = get();
+              
+              // Base casualty rate: 8% per tick (dramatically increased)
+              let casualtyRate = 0.08;
+              
+              // Depth-based escalation - deeper = exponentially more dangerous
+              const avgDepth = newState.scp087.currentDepth || 0;
+              const depthMultiplier = 1 + (avgDepth / 200) * 0.3; // +30% per 200m
+              casualtyRate *= depthMultiplier;
+              
+              // Death zones at milestone depths
+              const isDeathZone = (avgDepth >= 500 && avgDepth < 520) || 
+                                  (avgDepth >= 1000 && avgDepth < 1020) || 
+                                  (avgDepth >= 1500 && avgDepth < 1520);
+              if (isDeathZone) {
+                casualtyRate = 0.25; // 25% guaranteed casualties in death zones
+              }
+              
+              // Multiple casualty events possible per tick
+              if (Math.random() < casualtyRate) {
+                const maxCasualties = Math.min(3, Math.ceil(newState.dClassInventory.assigned * 0.4));
+                const casualtyCount = Math.ceil(Math.random() * maxCasualties);
+                
+                if (isDeathZone) {
+                  addDClassEvent(`CRITICAL DEPTH REACHED - Mass casualty event at ${Math.round(avgDepth)}m`, 'critical', 'SCP-087');
+                }
+                
+                processDClassCasualties(casualtyCount);
+                
+                // Auto-replace D-Class if inventory allows
+                const state = get();
+                if (state.dClassInventory.count >= casualtyCount) {
+                  set((prevState) => ({
+                    ...prevState,
+                    dClassInventory: {
+                      ...prevState.dClassInventory,
+                      count: prevState.dClassInventory.count - casualtyCount,
+                      assigned: prevState.dClassInventory.assigned + casualtyCount
+                    }
+                  }));
+                  
+                  addDClassEvent(`${casualtyCount} replacement D-Class deployed to maintain exploration teams`, 'info', 'SCP-087');
+                } else if (newState.dClassInventory.assigned <= 1) {
+                  // Emergency recall when too few D-Class remain
+                  addDClassEvent("EMERGENCY PROTOCOL - Team automatically recalled due to critical D-Class shortage", 'critical', 'SCP-087');
+                  get().toggleTeamExploration();
+                }
+              }
+              
+              // Continuous atmospheric events during exploration (20% chance per tick)
+              if (Math.random() < 0.2) {
+                const explorationEvents = [
+                  `Team reports increasing paranormal activity at ${Math.round(avgDepth)}m`,
+                  `Temperature dropping rapidly - thermal readings unstable at ${Math.round(avgDepth)}m`,
+                  `Audio distortions detected on D-Class radio feeds at ${Math.round(avgDepth)}m`,
+                  `Structural anomalies reported - stairwell geometry inconsistent at ${Math.round(avgDepth)}m`,
+                  `D-Class psychological evaluations showing elevated stress at ${Math.round(avgDepth)}m`,
+                  `Equipment malfunctions increasing - multiple flashlight failures at ${Math.round(avgDepth)}m`,
+                  `Unexplained echoes and sounds reported from deeper sections near ${Math.round(avgDepth)}m`,
+                  `Time dilation effects suspected - chronometer synchronization lost at ${Math.round(avgDepth)}m`
+                ];
+                
+                const randomEvent = explorationEvents[Math.floor(Math.random() * explorationEvents.length)];
+                addDClassEvent(randomEvent, avgDepth > 800 ? 'warning' : 'info', 'SCP-087');
+              }
             }
             
             // Update personnel positions (legacy)
