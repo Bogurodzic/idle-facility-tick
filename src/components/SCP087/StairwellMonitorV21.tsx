@@ -3,6 +3,7 @@ import { useGameStore } from "../../store/gameStore";
 import type { Encounter, Personnel, EncounterKind } from "../../store/scp087.types";
 import { ScrollArea } from "../ui/scroll-area";
 import { Button } from "../ui/button";
+import { PersonnelUpgradeModal } from "./PersonnelUpgradeModal";
 
 /**
  * SCP-087 MONITOR v2.1
@@ -28,6 +29,8 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
   const spawnEncounterAtDepth = useGameStore(state => state.spawnEncounterAtDepth);
   const resolveEncounter = useGameStore(state => state.resolveEncounter);
   const cullExpiredEncounters = useGameStore(state => state.cullExpiredEncounters);
+  
+  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
   
   // Handle legacy store format - create working defaults
   const flashlight = scp087?.flashlight || {
@@ -328,16 +331,30 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
           <div className="text-emerald-200/80 text-[9px] font-mono mb-1">PERSONNEL:</div>
           <div className="space-y-1">
             {personnel.map(p => (
-              <div key={p.id} className="flex justify-between text-[8px] font-mono text-emerald-300/60">
+              <button
+                key={p.id}
+                onClick={() => setSelectedPersonnel(p)}
+                className="flex justify-between w-full text-[8px] font-mono text-emerald-300/60 hover:text-emerald-200 hover:bg-emerald-500/10 rounded px-1 py-0.5 transition-colors"
+              >
                 <span>{p.name}</span>
                 <span>{p.role}</span>
+                <span>L{p.level}</span>
                 <span>D:{Math.round(p.absoluteDepth)}</span>
                 <span className={p.lane === "L" ? "text-blue-400" : "text-orange-400"}>{p.lane}</span>
-              </div>
+                <span className={p.active ? "text-green-400" : "text-gray-500"}>
+                  {p.active ? "ACTIVE" : "IDLE"}
+                </span>
+              </button>
             ))}
           </div>
         </div>
       </div>
+
+      <PersonnelUpgradeModal
+        personnel={selectedPersonnel}
+        isOpen={!!selectedPersonnel}
+        onClose={() => setSelectedPersonnel(null)}
+      />
     </div>
   );
 }

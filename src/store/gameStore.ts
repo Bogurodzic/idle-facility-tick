@@ -26,6 +26,7 @@ export interface SCP087State {
   flashlight: FlashlightState;
   personnel: Personnel[];
   activeEncounters: Encounter[];
+  teamActive: boolean;
   // Legacy arrays for backward compatibility
   oldPersonnel?: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
   oldActiveEncounters?: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
@@ -130,10 +131,47 @@ const defaultState: GameState = {
       lowThreshold: 20,
     },
     personnel: [
-      { id: "p1", name: "Operative Δ-7", role: "Scout", absoluteDepth: 0, lane: "L" },
-      { id: "p2", name: "Tech A. Morse", role: "Research", absoluteDepth: 68, lane: "R" },
-      { id: "p3", name: "Handler R-3", role: "Handler", absoluteDepth: 136, lane: "L" },
+      { 
+        id: "p1", 
+        name: "Operative Δ-7", 
+        role: "Scout", 
+        absoluteDepth: 0, 
+        lane: "L",
+        level: 1,
+        experience: 0,
+        speed: 1.2,
+        survivalRate: 0.9,
+        active: false,
+        status: "active"
+      },
+      { 
+        id: "p2", 
+        name: "Tech A. Morse", 
+        role: "Research", 
+        absoluteDepth: 0, 
+        lane: "R",
+        level: 1,
+        experience: 0,
+        speed: 0.8,
+        survivalRate: 0.7,
+        active: false,
+        status: "active"
+      },
+      { 
+        id: "p3", 
+        name: "Handler R-3", 
+        role: "Handler", 
+        absoluteDepth: 0, 
+        lane: "L",
+        level: 1,
+        experience: 0,
+        speed: 1.0,
+        survivalRate: 0.95,
+        active: false,
+        status: "active"
+      },
     ],
+    teamActive: false,
     activeEncounters: []
   },
   scp173: {
@@ -169,8 +207,10 @@ const defaultState: GameState = {
 };
 
 type GameActions = {
-  // SCP-087 Actions
-  descendStairwell: () => void;
+  // SCP-087 Actions - Personnel Management
+  toggleTeamExploration: () => void;
+  upgradePersonnel: (personnelId: string, upgradeType: string) => void;
+  replacePersonnel: (personnelId: string) => void;
   purchaseSCP087Upgrade: (upgradeId: string) => void;
   rechargeFlashlight: () => void;
   
@@ -201,67 +241,95 @@ export const useGameStore = create<GameState & GameActions>()(
     (set, get) => ({
       ...defaultState,
 
-      // SCP-087 Actions
-      descendStairwell: () => {
-        const state = get();
-        const scp087 = state.scp087;
-        
-        // Calculate energy gain based on depth and upgrades
-        const flashlightBonus = 1 + (scp087.upgrades.flashlight.owned * scp087.upgrades.flashlight.effect - scp087.upgrades.flashlight.owned);
-        const ropeBonus = 1 + (scp087.upgrades.rope.owned * scp087.upgrades.rope.effect - scp087.upgrades.rope.owned);
-        const trainingBonus = Math.pow(scp087.upgrades.training.effect, scp087.upgrades.training.owned);
-        
-        const depthGain = Math.floor(1 * ropeBonus);
-        const energyGain = Math.floor((scp087.currentDepth + depthGain) * flashlightBonus);
-        
-        // Roll for encounter
-        const encounterRoll = Math.random();
-        const currentEncounterChance = scp087.encounterChance * trainingBonus;
-        
-        let encounterTriggered = false;
-        if (encounterRoll < currentEncounterChance) {
-          encounterTriggered = true;
-        }
+      // SCP-087 Actions - Personnel Management
+      toggleTeamExploration: () => {
+        set((state) => {
+          const newTeamActive = !state.scp087.teamActive;
+          return {
+            ...state,
+            scp087: {
+              ...state.scp087,
+              teamActive: newTeamActive,
+              personnel: state.scp087.personnel.map(p => ({
+                ...p,
+                active: newTeamActive
+              }))
+            }
+          };
+        });
+      },
 
-        // Consume flashlight battery
-        const batteryDrain = Math.max(1, Math.floor(depthGain / 10));
-        const newBattery = Math.max(0, scp087.flashlightBattery - batteryDrain);
-        
-        // Spawn personnel randomly (legacy format for now)
-        const newPersonnel = [...(scp087.oldPersonnel || [])];
-        if (Math.random() < 0.3 && newPersonnel.length < 3) {
-          newPersonnel.push({
-            id: `person_${Date.now()}`,
-            position: Math.random() * Math.min(8, Math.floor(scp087.currentDepth / 10) + 3),
-            direction: Math.random() < 0.5 ? 'down' : 'up'
-          });
-        }
-        
-        // Spawn encounters (legacy format for now)
-        const newEncounters = [...(scp087.oldActiveEncounters || [])];
-        if (encounterTriggered) {
-          const encounterType = Math.random() < 0.7 ? 'hostile' : 'neutral';
-          newEncounters.push({
-            id: `encounter_${Date.now()}`,
-            position: Math.random() * Math.min(8, Math.floor(scp087.currentDepth / 10) + 3),
-            type: encounterType,
-            symbol: encounterType === 'hostile' ? '◉' : '☻'
-          });
-        }
-        
-        // Clean up old encounters
-        const filteredEncounters = newEncounters.filter(() => Math.random() > 0.1);
+      upgradePersonnel: (personnelId: string, upgradeType: string) => {
+        const state = get();
+        const personnel = state.scp087.personnel.find(p => p.id === personnelId);
+        if (!personnel) return;
+
+        const costs = {
+          level: 50 + (personnel.level * 25),
+          speed: 30 + (personnel.speed * 20),
+          survival: 40 + (personnel.survivalRate * 50)
+        };
+
+        const cost = costs[upgradeType as keyof typeof costs];
+        if (!cost || state.scp087.paranoiaEnergy < cost) return;
 
         set((state) => ({
+          ...state,
           scp087: {
             ...state.scp087,
-            currentDepth: state.scp087.currentDepth + depthGain,
-            depth: state.scp087.currentDepth + depthGain, // sync alias
-            paranoiaEnergy: state.scp087.paranoiaEnergy + energyGain,
-            lastEncounter: encounterTriggered ? Date.now() : state.scp087.lastEncounter,
-            flashlightBattery: newBattery,
-            oldPersonnel: newPersonnel, // legacy support
-            oldActiveEncounters: filteredEncounters // legacy support
+            paranoiaEnergy: state.scp087.paranoiaEnergy - cost,
+            personnel: state.scp087.personnel.map(p => {
+              if (p.id !== personnelId) return p;
+              
+              switch (upgradeType) {
+                case 'level':
+                  return { ...p, level: p.level + 1, experience: 0 };
+                case 'speed':
+                  return { ...p, speed: p.speed + 0.1 };
+                case 'survival':
+                  return { ...p, survivalRate: Math.min(0.99, p.survivalRate + 0.05) };
+                default:
+                  return p;
+              }
+            })
+          }
+        }));
+      },
+
+      replacePersonnel: (personnelId: string) => {
+        const state = get();
+        const cost = 100;
+        if (state.scp087.paranoiaEnergy < cost) return;
+
+        const roles = ["Scout", "Research", "Handler"] as const;
+        const names = {
+          Scout: ["Agent Delta", "Scout Alpha", "Operative Beta"],
+          Research: ["Dr. Chen", "Tech Analyst", "Research Lead"],
+          Handler: ["Handler Prime", "Safety Officer", "Team Leader"]
+        };
+
+        set((state) => ({
+          ...state,
+          scp087: {
+            ...state.scp087,
+            paranoiaEnergy: state.scp087.paranoiaEnergy - cost,
+            personnel: state.scp087.personnel.map(p => {
+              if (p.id !== personnelId) return p;
+              
+              const role = p.role;
+              const nameList = names[role];
+              const newName = nameList[Math.floor(Math.random() * nameList.length)];
+              
+              return {
+                ...p,
+                name: newName,
+                level: 1,
+                experience: 0,
+                speed: role === "Scout" ? 1.2 : role === "Research" ? 0.8 : 1.0,
+                survivalRate: role === "Scout" ? 0.9 : role === "Research" ? 0.7 : 0.95,
+                status: "active" as const
+              };
+            })
           }
         }));
       },
@@ -381,17 +449,30 @@ export const useGameStore = create<GameState & GameActions>()(
 
       movePersonnel: (dt: number) => {
         set((state) => {
-          const speed = 18 * (state.scp087.flashlight.on ? 1 : 0.6);
-          const newPersonnel = state.scp087.personnel.map(p => ({
-            ...p,
-            absoluteDepth: p.absoluteDepth + speed * dt
-          }));
+          if (!state.scp087.teamActive) return state;
+          
+          const baseSpeed = 18 * (state.scp087.flashlight.on ? 1 : 0.6);
+          const newPersonnel = state.scp087.personnel.map(p => {
+            if (!p.active) return p;
+            
+            const personnelSpeed = baseSpeed * p.speed;
+            return {
+              ...p,
+              absoluteDepth: p.absoluteDepth + personnelSpeed * dt,
+              experience: p.experience + (personnelSpeed * dt * 0.1)
+            };
+          });
+          
+          // Update player depth to follow furthest personnel
+          const maxDepth = Math.max(...newPersonnel.map(p => p.absoluteDepth));
           
           return {
             ...state,
             scp087: {
               ...state.scp087,
-              personnel: newPersonnel
+              personnel: newPersonnel,
+              currentDepth: maxDepth,
+              depth: maxDepth
             }
           };
         });

@@ -12,7 +12,7 @@ import StairwellMonitorV21 from "./SCP087/StairwellMonitorV21";
 export const SCP087Panel = () => {
   const { 
     scp087, 
-    descendStairwell, 
+    toggleTeamExploration, 
     purchaseSCP087Upgrade 
   } = useGameStore();
   
@@ -43,9 +43,9 @@ export const SCP087Panel = () => {
     }
   };
 
-  const handleDescend = () => {
+  const handleToggleTeam = () => {
     setIsDescending(true);
-    descendStairwell();
+    toggleTeamExploration();
     setTimeout(() => setIsDescending(false), 1000);
   };
 
@@ -86,21 +86,27 @@ export const SCP087Panel = () => {
           </div>
         </div>
 
-        {/* Auto Progress Indicator */}
-        {scp087.autoDescend && (
+        {/* Team Status Indicator */}
+        {scp087.teamActive && (
           <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Exploration Team Active</div>
+            <div className="text-sm text-muted-foreground">Exploration Team Deployed</div>
             <Progress value={((Date.now() % 5000) / 5000) * 100} className="h-2" />
           </div>
         )}
 
-        {/* Action Button */}
+        {/* Team Control Button */}
         <Button 
-          onClick={handleDescend}
+          onClick={handleToggleTeam}
           className="w-full bg-scp-087 hover:bg-scp-087/80 text-black font-mono"
           disabled={recentEncounter}
+          variant={scp087.teamActive ? "destructive" : "default"}
         >
-          {recentEncounter ? "Recovering from Encounter..." : "DESCEND STAIRWELL"}
+          {recentEncounter 
+            ? "Recovering from Encounter..." 
+            : scp087.teamActive 
+              ? "RECALL TEAM" 
+              : "DEPLOY TEAM"
+          }
         </Button>
 
         {/* Upgrades */}

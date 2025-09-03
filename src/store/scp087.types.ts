@@ -17,6 +17,12 @@ export interface Personnel {
   absoluteDepth: number; // where the agent is in the stairwell
   lane: "L" | "R";       // render hint (left/right column)
   focus?: boolean;
+  level: number;
+  experience: number;
+  speed: number;         // movement speed modifier
+  survivalRate: number;  // chance to survive encounters
+  active: boolean;       // whether they're currently exploring
+  status: "active" | "resting" | "lost" | "injured";
 }
 
 export interface FlashlightState {
