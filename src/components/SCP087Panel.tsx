@@ -80,8 +80,13 @@ export const SCP087Panel = () => {
 
         {/* Upgrades */}
         <div className="space-y-3">
-          <h4 className="text-sm font-semibold text-muted-foreground">RESEARCH & DEVELOPMENT</h4>
-          <div className="grid gap-3">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-2 h-6 bg-red-600 rounded"></div>
+            <h4 className="text-sm font-bold text-foreground tracking-wider">RESEARCH & DEVELOPMENT</h4>
+            <div className="flex-1 h-px bg-gradient-to-r from-red-600/50 to-transparent"></div>
+            <div className="text-xs text-red-400 font-mono">CLASSIFIED</div>
+          </div>
+          <div className="grid gap-3 border-l-2 border-red-600/20 pl-4">
             {Object.entries(scp087.upgrades).map(([id, upgrade]) => (
               <UpgradeCard
                 key={id}

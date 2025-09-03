@@ -45,18 +45,21 @@ export const UpgradeCard = ({
       case 'advancedBattery':
         return {
           bgClass: level === 0 ? "bg-muted/30" : 
-                  level < 3 ? "bg-gradient-to-br from-yellow-500/20 to-amber-600/20" :
-                  level < 6 ? "bg-gradient-to-br from-yellow-400/30 to-amber-500/30" :
-                  "bg-gradient-to-br from-yellow-300/40 to-amber-400/40",
+                  level < 5 ? "bg-gradient-to-br from-orange-900/20 to-red-900/20" :
+                  level < 10 ? "bg-gradient-to-br from-orange-800/30 to-red-800/30" :
+                  level < 15 ? "bg-gradient-to-br from-orange-700/40 to-red-700/40" :
+                  "bg-gradient-to-br from-orange-600/50 to-red-600/50",
           borderClass: level === 0 ? "border-muted" :
-                      level < 3 ? "border-yellow-500/30" :
-                      level < 6 ? "border-yellow-400/50" :
-                      "border-yellow-300/70 shadow-lg shadow-yellow-500/20",
+                      level < 5 ? "border-orange-700/30" :
+                      level < 10 ? "border-orange-600/50" :
+                      level < 15 ? "border-orange-500/70" :
+                      "border-orange-400/90 shadow-lg shadow-orange-500/20",
           iconColor: level === 0 ? "text-muted-foreground" :
-                    level < 3 ? "text-yellow-600" :
-                    level < 6 ? "text-yellow-500" :
-                    "text-yellow-400 drop-shadow-glow",
-          effect: level >= 3 ? "animate-pulse" : ""
+                    level < 5 ? "text-orange-400" :
+                    level < 10 ? "text-orange-300" :
+                    level < 15 ? "text-orange-200" :
+                    "text-orange-100",
+          effect: level >= 10 ? "animate-pulse" : ""
         };
         
       case 'training':
@@ -105,11 +108,21 @@ export const UpgradeCard = ({
         };
         
       default:
+        // Enhanced SCP-themed styling for all other upgrades
         return {
-          bgClass: "bg-muted/30",
-          borderClass: "border-muted",
-          iconColor: "text-muted-foreground",
-          effect: ""
+          bgClass: level === 0 ? "bg-muted/30" : 
+                  level < 3 ? "bg-gradient-to-br from-slate-800/20 to-slate-700/20" :
+                  level < 6 ? "bg-gradient-to-br from-slate-700/30 to-slate-600/30" :
+                  "bg-gradient-to-br from-slate-600/40 to-slate-500/40",
+          borderClass: level === 0 ? "border-muted" :
+                      level < 3 ? "border-slate-600/30" :
+                      level < 6 ? "border-slate-500/50" :
+                      "border-slate-400/70 shadow-lg shadow-slate-500/20",
+          iconColor: level === 0 ? "text-muted-foreground" :
+                    level < 3 ? "text-slate-400" :
+                    level < 6 ? "text-slate-300" :
+                    "text-slate-200",
+          effect: level >= 5 ? "animate-pulse" : ""
         };
     }
   };
@@ -129,9 +142,10 @@ export const UpgradeCard = ({
         <Badge 
           className={cn(
             "absolute -top-2 -right-2 text-xs font-bold transition-colors",
-            upgrade.owned >= 10 ? "bg-gradient-to-r from-yellow-500 to-amber-600 text-black" :
-            upgrade.owned >= 5 ? "bg-gradient-to-r from-blue-500 to-purple-600" :
-            "bg-primary"
+            upgrade.owned >= 15 ? "bg-gradient-to-r from-red-600 to-orange-600 text-white border-red-400" :
+            upgrade.owned >= 10 ? "bg-gradient-to-r from-orange-600 to-red-600 text-white border-orange-400" :
+            upgrade.owned >= 5 ? "bg-gradient-to-r from-orange-700 to-orange-600 text-white border-orange-500" :
+            "bg-orange-800 text-orange-200 border-orange-600"
           )}
         >
           L{upgrade.owned}
@@ -139,8 +153,8 @@ export const UpgradeCard = ({
       )}
       
       {/* Mastery indicator for high levels */}
-      {upgrade.owned >= 10 && (
-        <div className="absolute -top-1 -left-1 w-3 h-3 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full animate-pulse" />
+      {upgrade.owned >= 15 && (
+        <div className="absolute -top-1 -left-1 w-3 h-3 bg-gradient-to-r from-red-500 to-orange-500 rounded-full animate-pulse border border-red-400" />
       )}
       
       <div className="flex items-start gap-3">
@@ -164,21 +178,19 @@ export const UpgradeCard = ({
           
           <p className="text-xs text-muted-foreground mb-2">
             {upgrade.id === 'advancedBattery' && upgrade.owned > 0 
-              ? `${upgrade.description} (Currently: +${upgrade.owned}% efficiency)`
+              ? `${upgrade.description} (Currently: Level ${upgrade.owned} - +${upgrade.owned}% efficiency)`
               : upgrade.description}
           </p>
           
           {/* Visual effect indicator for certain upgrades */}
-          {upgrade.owned > 0 && (upgrade.id === 'advancedBattery' || upgrade.id === 'training') && (
+          {upgrade.owned > 0 && upgrade.id === 'advancedBattery' && (
             <div className="mb-2">
               <Progress 
-                value={upgrade.id === 'advancedBattery' ? Math.min((upgrade.owned / 20) * 100, 100) : (upgrade.owned / 10) * 100} 
-                className="h-1"
+                value={Math.min((upgrade.owned / 20) * 100, 100)} 
+                className="h-1 bg-muted"
               />
               <div className="text-xs text-muted-foreground mt-1">
-                {upgrade.id === 'advancedBattery' 
-                  ? `Efficiency: +${upgrade.owned}%` 
-                  : `Efficiency: ${Math.floor((upgrade.owned / 10) * 100)}%`}
+                Efficiency Bonus: +{upgrade.owned}% | Next Level: +{upgrade.owned + 1}%
               </div>
             </div>
           )}
