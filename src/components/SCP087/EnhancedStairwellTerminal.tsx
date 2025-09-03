@@ -180,13 +180,19 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
 
-    // Enhanced header with speed display
+    // Enhanced header with speed display and flashlight upgrade info
     out.push({text: "╔════ SCP-087 TERMINAL v3.0 ════╗"});
     out.push({text: "║ █ SECURE ██ CONTAIN ██ PROTECT ║"});
     out.push({text: "╠════════════════════════════════╣"});
     const flashStatus = f.on ? "◉ ON " : "○ OFF";
     const lightEffect = f.on ? "████" : "░░░░";
-    out.push({text: `║ FLASHLIGHT: ${flashStatus} [${battBar}] ║`});
+    
+    // Flashlight upgrade info for header
+    const batteryUpgrade = scp087.upgrades.advancedBattery;
+    const upgradeLevel = batteryUpgrade?.owned || 0;
+    const upgradeSuffix = upgradeLevel > 0 ? ` L${upgradeLevel}` : "";
+    
+    out.push({text: `║ FLASHLIGHT: ${flashStatus} [${battBar}]${upgradeSuffix.padEnd(4, " ")} ║`});
     out.push({text: `║ BEAM: ${lightEffect}  DEPTH: ${String(Math.round(depth)).padStart(5, " ")}m  TEAM: ${scp087.teamDeployed ? "ACTIVE" : "IDLE"} ║`});
     out.push({text: `║ SPEED: ${currentSpeed.toFixed(1)}m/s (${speedPercent}%)  PROGRESS: ${scp087.teamDeployed ? "DESCENDING" : "STANDBY"} ║`});
     out.push({text: "╠════════════════════════════════╣"});
@@ -507,65 +513,10 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
               {formatNumber(scp087.paranoiaEnergy)}
             </div>
           </div>
-          <div className="bg-card border border-terminal-green/20 p-3 rounded">
-            <div className="text-xs text-muted-foreground">Current Depth</div>
-            <div className="text-lg font-mono text-foreground">
-              {formatNumber(scp087.currentDepth)}m
-            </div>
-          </div>
-          
-          {/* Flashlight Upgrade Status */}
-          {(() => {
-            const batteryUpgrade = scp087.upgrades.advancedBattery;
-            const upgradeLevel = batteryUpgrade?.owned || 0;
-            const efficiencyBonus = upgradeLevel * 1; // +1% per level
-            const baseCapacity = 100;
-            const baseDrainRate = 6;
-            const currentCapacity = Math.floor(baseCapacity * (1 + efficiencyBonus / 100));
-            const currentDrainRate = Math.max(1, baseDrainRate * (1 - efficiencyBonus / 100));
-            
-            return upgradeLevel > 0 ? (
-              <div className="bg-card border border-yellow-500/20 p-3 rounded">
-                <div className="text-xs text-muted-foreground">Flashlight Upgrades</div>
-                <div className="text-sm font-mono space-y-1">
-                  <div className="text-yellow-400">Level {upgradeLevel} (+{efficiencyBonus}% efficiency)</div>
-                  <div className="text-xs text-muted-foreground">
-                    Capacity: {currentCapacity} <span className="text-green-400">(+{currentCapacity - baseCapacity})</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Drain Rate: {currentDrainRate.toFixed(1)}/s <span className="text-green-400">({(baseDrainRate - currentDrainRate).toFixed(1)} saved)</span>
-                  </div>
-                </div>
-              </div>
-            ) : null;
-          })()}
         </div>
 
         {/* Team Controls */}
         <div className="space-y-2">
-          {/* Team Status - Always show, enhanced when active */}
-          <div className={`bg-card border p-3 rounded transition-all duration-300 ${
-            scp087.teamDeployed 
-              ? "border-terminal-green/40 bg-terminal-green/5 shadow-[0_0_10px_hsl(var(--terminal-green)_/_0.2)]" 
-              : "border-terminal-green/20"
-          }`}>
-            <div className="flex items-center gap-2 mb-2">
-              <Users className={`w-3 h-3 transition-colors ${
-                scp087.teamDeployed ? "text-terminal-green animate-pulse" : "text-muted-foreground"
-              }`} />
-              <span className={`text-xs ${
-                scp087.teamDeployed ? "text-terminal-green" : "text-muted-foreground"
-              }`}>
-                Team Status: {scp087.teamDeployed ? "DEPLOYED" : "STANDBY"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-mono">
-              <span className="text-muted-foreground">Speed:</span>
-              <span className={f.on && f.charge > 0 ? "text-terminal-green" : "text-yellow-400"}>
-                {currentSpeed.toFixed(1)}m/s ({speedPercent}%)
-              </span>
-            </div>
-          </div>
 
           {/* Encounter Alert */}
           {recentEncounter && (
