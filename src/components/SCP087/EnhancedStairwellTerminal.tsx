@@ -6,6 +6,8 @@ import { Progress } from "../ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { Users, AlertTriangle, Flashlight, FlashlightOff, Battery, Zap } from "lucide-react";
 import { EncounterProgressBar } from "./EncounterProgressBar";
+import { DeploymentStatusIndicator } from "../DeploymentStatusIndicator";
+import { useToast } from "@/hooks/use-toast";
 
 /**
  * Enhanced SCP-087 Terminal Monitor v3.0
@@ -23,8 +25,9 @@ const TICKS_VISIBLE = 9;
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
 export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
-  console.log("EnhancedStairwellTerminal loading - PersonnelUpgradeModal should be completely removed");
+  // Enhanced Terminal v3.0 - D-Class deployment system integrated
   
+  const { toast } = useToast();
   const scp087 = useGameStore(state => state.scp087);
   const toggleFlashlight = useGameStore(state => state.toggleFlashlight);
   const drainFlashlight = useGameStore(state => state.drainFlashlight);
@@ -169,13 +172,13 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
                   "░".repeat(Math.max(0, battCells - battFill));
 
   // Enhanced vertical progress calculation for team deployment
-  const deployProgress = scp087.teamDeployed ? ((Date.now() % 3000) / 3000) * 100 : 0;
+  const deployProgress = (scp087.teamDeployed || scp087.teamActive) ? ((Date.now() % 3000) / 3000) * 100 : 0;
   const verticalProgressChars = "▁▂▃▄▅▆▇█";
   const progressIndex = Math.floor((deployProgress / 100) * (verticalProgressChars.length - 1));
-  const progressChar = scp087.teamDeployed ? 
+  const progressChar = (scp087.teamDeployed || scp087.teamActive) ? 
     `${verticalProgressChars[progressIndex]}` : 
     "█"; // Always show full bar when not deployed for visibility
-  const progressColor = scp087.teamDeployed ? "text-terminal-green" : "text-muted-foreground";
+  const progressColor = (scp087.teamDeployed || scp087.teamActive) ? "text-terminal-green" : "text-muted-foreground";
 
   // Calculate current speed for display
   const baseSpeed = 5;
@@ -200,8 +203,8 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
     const upgradeSuffix = upgradeLevel > 0 ? ` L${upgradeLevel}` : "";
     
     out.push({text: `║ FLASHLIGHT: ${flashStatus} [${battBar}]${upgradeSuffix.padEnd(4, " ")} ║`});
-    out.push({text: `║ BEAM: ${lightEffect}  DEPTH: ${String(Math.round(depth)).padStart(5, " ")}m  TEAM: ${scp087.teamDeployed ? "ACTIVE" : "IDLE"} ║`});
-    out.push({text: `║ SPEED: ${currentSpeed.toFixed(1)}m/s (${speedPercent}%)  PROGRESS: ${scp087.teamDeployed ? "DESCENDING" : "STANDBY"} ║`});
+    out.push({text: `║ BEAM: ${lightEffect}  DEPTH: ${String(Math.round(depth)).padStart(5, " ")}m  TEAM: ${(scp087.teamDeployed || scp087.teamActive) ? "ACTIVE" : "IDLE"} ║`});
+    out.push({text: `║ SPEED: ${currentSpeed.toFixed(1)}m/s (${speedPercent}%)  STATUS: ${(scp087.teamDeployed || scp087.teamActive) ? "EXPLORING" : "STANDBY"} ║`});
     out.push({text: "╠════════════════════════════════╣"});
     
     const within = (abs: number, tick: number) => {
@@ -349,9 +352,65 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   }, []);
 
   const handleDeployTeam = () => {
+    const requiredDClass = 4;
+    const available = dClassInventory.count;
+    
+    console.log(`=== DEPLOYMENT ATTEMPT ===`);
+    console.log(`Team currently deployed: ${scp087.teamDeployed}`);
+    console.log(`Team currently active: ${scp087.teamActive}`);
+    console.log(`Available D-Class: ${available}`);
+    console.log(`Required D-Class: ${requiredDClass}`);
+    console.log(`Assigned D-Class: ${dClassInventory.assigned}`);
+    
+    if (scp087.teamDeployed || scp087.teamActive) {
+      // Recall team
+      setIsDeploying(true);
+      console.log("=== RECALLING TEAM ===");
+      toast({
+        title: "Team Recalled",
+        description: `Exploration team returning from SCP-087 (${dClassInventory.assigned} D-Class returning)`,
+        duration: 3000,
+      });
+      toggleTeamExploration();
+      setTimeout(() => setIsDeploying(false), 800);
+      return;
+    }
+    
+    // Check D-Class availability before deployment
+    if (available < requiredDClass) {
+      // Show error feedback - insufficient D-Class
+      console.log(`=== DEPLOYMENT FAILED ===`);
+      console.log(`Reason: Insufficient D-Class (${available}/${requiredDClass})`);
+      toast({
+        title: "Deployment Failed",
+        description: `Insufficient D-Class personnel (${available}/${requiredDClass})`,
+        variant: "destructive",
+        duration: 5000,
+      });
+      return;
+    }
+    
+    // Proceed with deployment
     setIsDeploying(true);
+    console.log(`=== DEPLOYING TEAM ===`);
+    console.log(`Consuming ${requiredDClass} D-Class from inventory`);
+    toast({
+      title: "Team Deployed",
+      description: `Exploration team descending with ${requiredDClass} D-Class personnel`,
+      duration: 3000,
+    });
     toggleTeamExploration();
-    setTimeout(() => setIsDeploying(false), 1000);
+    
+    // Log final state after deployment
+    setTimeout(() => {
+      const finalState = useGameStore.getState();
+      console.log(`=== POST-DEPLOYMENT STATE ===`);
+      console.log(`Team deployed: ${finalState.scp087.teamDeployed}`);
+      console.log(`Team active: ${finalState.scp087.teamActive}`);
+      console.log(`D-Class remaining: ${finalState.dClassInventory.count}`);
+      console.log(`D-Class assigned: ${finalState.dClassInventory.assigned}`);
+      setIsDeploying(false);
+    }, 800);
   };
 
   // Memoized flashlight button to prevent flickering
@@ -552,6 +611,8 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
 
         {/* Team Controls */}
         <div className="space-y-2">
+          {/* Deployment Status Indicator */}
+          <DeploymentStatusIndicator />
 
           {/* Encounter Alert */}
           {recentEncounter && (
@@ -563,22 +624,37 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
             </div>
           )}
 
-          {/* Deploy Button */}
-          <Button 
-            onClick={handleDeployTeam}
-            className="w-full font-mono text-xs"
-            disabled={recentEncounter || isDeploying}
-            variant={scp087.teamDeployed ? "destructive" : "default"}
-          >
-            {recentEncounter 
-              ? "RECOVERING..." 
-              : isDeploying
-                ? "DEPLOYING..."
-              : scp087.teamDeployed 
-                ? "◄◄ RECALL TEAM" 
-                : "►► DEPLOY TEAM"
-            }
-          </Button>
+          {/* Deploy Button with D-Class Requirements */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-muted-foreground font-mono">
+              <span>D-Class Status:</span>
+              <span className={dClassInventory.count >= 4 ? "text-green-400" : "text-red-400"}>
+                {dClassInventory.count} available / {dClassInventory.assigned} deployed
+              </span>
+            </div>
+            <Button 
+              onClick={handleDeployTeam}
+              className="w-full font-mono text-xs"
+              disabled={recentEncounter || isDeploying || (!(scp087.teamDeployed || scp087.teamActive) && dClassInventory.count < 4)}
+              variant={(scp087.teamDeployed || scp087.teamActive) ? "destructive" : "default"}
+            >
+              {recentEncounter 
+                ? "RECOVERING..." 
+                : isDeploying
+                  ? (scp087.teamDeployed || scp087.teamActive) ? "RECALLING..." : "DEPLOYING..."
+                : (scp087.teamDeployed || scp087.teamActive)
+                  ? "◄◄ RECALL TEAM" 
+                : dClassInventory.count < 4
+                  ? "NEED 4 D-CLASS"
+                  : "►► DEPLOY TEAM"
+              }
+            </Button>
+            {!(scp087.teamDeployed || scp087.teamActive) && dClassInventory.count < 4 && (
+              <div className="text-xs text-red-400 font-mono text-center">
+                Insufficient D-Class personnel
+              </div>
+            )}
+          </div>
 
           {/* Enhanced Flashlight Controls */}
           <div className="grid grid-cols-2 gap-2">
