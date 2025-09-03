@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { Encounter, Personnel, FlashlightState, EncounterKind } from './scp087.types';
 
 // Types for game state
 export interface Upgrade {
@@ -15,14 +16,19 @@ export interface Upgrade {
 export interface SCP087State {
   paranoiaEnergy: number;
   currentDepth: number;
+  depth: number; // alias for currentDepth for new monitor
   encounterChance: number;
   upgrades: Record<string, Upgrade>;
   autoDescend: boolean;
   lastEncounter: number;
-  flashlightBattery: number; // 0-100
+  flashlightBattery: number; // 0-100 (legacy)
   flashlightRecharging: boolean;
-  personnel: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
-  activeEncounters: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
+  flashlight: FlashlightState;
+  personnel: Personnel[];
+  activeEncounters: Encounter[];
+  // Legacy arrays for backward compatibility
+  oldPersonnel?: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
+  oldActiveEncounters?: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
 }
 
 export interface SCP173State {
@@ -108,13 +114,26 @@ const defaultState: GameState = {
   scp087: {
     paranoiaEnergy: 0,
     currentDepth: 0,
+    depth: 0,
     encounterChance: 0.1,
     upgrades: initialSCP087Upgrades,
     autoDescend: false,
     lastEncounter: 0,
     flashlightBattery: 100,
     flashlightRecharging: false,
-    personnel: [],
+    flashlight: {
+      on: true,
+      charge: 100,
+      capacity: 100,
+      drainPerSec: 6,
+      rechargePerSec: 22,
+      lowThreshold: 20,
+    },
+    personnel: [
+      { id: "p1", name: "Operative Δ-7", role: "Scout", absoluteDepth: 0, lane: "L" },
+      { id: "p2", name: "Tech A. Morse", role: "Research", absoluteDepth: 68, lane: "R" },
+      { id: "p3", name: "Handler R-3", role: "Handler", absoluteDepth: 136, lane: "L" },
+    ],
     activeEncounters: []
   },
   scp173: {
@@ -154,6 +173,15 @@ type GameActions = {
   descendStairwell: () => void;
   purchaseSCP087Upgrade: (upgradeId: string) => void;
   rechargeFlashlight: () => void;
+  
+  // New SCP-087 Actions for Terminal v2.1
+  toggleFlashlight: () => void;
+  drainFlashlight: (dt: number) => void;
+  rechargeFlashlightV2: (dt: number) => void;
+  movePersonnel: (dt: number) => void;
+  spawnEncounterAtDepth: (absoluteDepth: number, kind: EncounterKind) => void;
+  resolveEncounter: (id: string) => void;
+  cullExpiredEncounters: () => void;
   
   // SCP-173 Actions
   blink: () => void;
@@ -199,8 +227,8 @@ export const useGameStore = create<GameState & GameActions>()(
         const batteryDrain = Math.max(1, Math.floor(depthGain / 10));
         const newBattery = Math.max(0, scp087.flashlightBattery - batteryDrain);
         
-        // Spawn personnel randomly
-        const newPersonnel = [...scp087.personnel];
+        // Spawn personnel randomly (legacy format for now)
+        const newPersonnel = [...(scp087.oldPersonnel || [])];
         if (Math.random() < 0.3 && newPersonnel.length < 3) {
           newPersonnel.push({
             id: `person_${Date.now()}`,
@@ -209,8 +237,8 @@ export const useGameStore = create<GameState & GameActions>()(
           });
         }
         
-        // Spawn encounters
-        const newEncounters = [...scp087.activeEncounters];
+        // Spawn encounters (legacy format for now)
+        const newEncounters = [...(scp087.oldActiveEncounters || [])];
         if (encounterTriggered) {
           const encounterType = Math.random() < 0.7 ? 'hostile' : 'neutral';
           newEncounters.push({
@@ -228,11 +256,12 @@ export const useGameStore = create<GameState & GameActions>()(
           scp087: {
             ...state.scp087,
             currentDepth: state.scp087.currentDepth + depthGain,
+            depth: state.scp087.currentDepth + depthGain, // sync alias
             paranoiaEnergy: state.scp087.paranoiaEnergy + energyGain,
             lastEncounter: encounterTriggered ? Date.now() : state.scp087.lastEncounter,
             flashlightBattery: newBattery,
-            personnel: newPersonnel,
-            activeEncounters: filteredEncounters
+            oldPersonnel: newPersonnel, // legacy support
+            oldActiveEncounters: filteredEncounters // legacy support
           }
         }));
       },
@@ -243,21 +272,35 @@ export const useGameStore = create<GameState & GameActions>()(
         
         if (!upgrade || state.scp087.paranoiaEnergy < upgrade.cost) return;
         
-        set((state) => ({
-          scp087: {
-            ...state.scp087,
-            paranoiaEnergy: state.scp087.paranoiaEnergy - upgrade.cost,
-            upgrades: {
-              ...state.scp087.upgrades,
-              [upgradeId]: {
-                ...upgrade,
-                owned: upgrade.owned + 1,
-                cost: Math.floor(upgrade.cost * 1.15) // 15% cost increase
-              }
-            },
-            autoDescend: upgradeId === 'team' ? true : state.scp087.autoDescend
+        set((state) => {
+          const newState = {
+            ...state,
+            scp087: {
+              ...state.scp087,
+              paranoiaEnergy: state.scp087.paranoiaEnergy - upgrade.cost,
+              upgrades: {
+                ...state.scp087.upgrades,
+                [upgradeId]: {
+                  ...upgrade,
+                  owned: upgrade.owned + 1,
+                  cost: Math.floor(upgrade.cost * 1.15) // 15% cost increase
+                }
+              },
+              autoDescend: upgradeId === 'team' ? true : state.scp087.autoDescend
+            }
+          };
+          
+          // Apply flashlight upgrade effects
+          if (upgradeId === 'flashlight') {
+            newState.scp087.flashlight = {
+              ...newState.scp087.flashlight,
+              capacity: newState.scp087.flashlight.capacity + 20,
+              drainPerSec: Math.max(2.5, newState.scp087.flashlight.drainPerSec - 0.35)
+            };
           }
-        }));
+          
+          return newState;
+        });
       },
 
       rechargeFlashlight: () => {
@@ -281,6 +324,139 @@ export const useGameStore = create<GameState & GameActions>()(
             }
           }));
         }, 3000);
+      },
+
+      // New SCP-087 Actions for Terminal v2.1
+      toggleFlashlight: () => {
+        set((state) => ({
+          scp087: {
+            ...state.scp087,
+            flashlight: {
+              ...state.scp087.flashlight,
+              on: !state.scp087.flashlight.on
+            }
+          }
+        }));
+      },
+
+      drainFlashlight: (dt: number) => {
+        set((state) => {
+          const f = state.scp087.flashlight;
+          if (!f.on) return state;
+          
+          const newCharge = Math.max(0, f.charge - f.drainPerSec * dt);
+          return {
+            ...state,
+            scp087: {
+              ...state.scp087,
+              flashlight: {
+                ...f,
+                charge: newCharge,
+                on: newCharge > 0 ? f.on : false
+              },
+              flashlightBattery: newCharge // sync legacy field
+            }
+          };
+        });
+      },
+
+      rechargeFlashlightV2: (dt: number) => {
+        set((state) => {
+          const f = state.scp087.flashlight;
+          const newCharge = Math.min(f.capacity, f.charge + f.rechargePerSec * dt);
+          return {
+            ...state,
+            scp087: {
+              ...state.scp087,
+              flashlight: {
+                ...f,
+                charge: newCharge,
+                on: newCharge > 0 && !f.on ? true : f.on
+              },
+              flashlightBattery: newCharge // sync legacy field
+            }
+          };
+        });
+      },
+
+      movePersonnel: (dt: number) => {
+        set((state) => {
+          const speed = 18 * (state.scp087.flashlight.on ? 1 : 0.6);
+          const newPersonnel = state.scp087.personnel.map(p => ({
+            ...p,
+            absoluteDepth: p.absoluteDepth + speed * dt
+          }));
+          
+          return {
+            ...state,
+            scp087: {
+              ...state.scp087,
+              personnel: newPersonnel
+            }
+          };
+        });
+      },
+
+      spawnEncounterAtDepth: (absoluteDepth: number, kind: EncounterKind) => {
+        set((state) => ({
+          scp087: {
+            ...state.scp087,
+            activeEncounters: [
+              ...state.scp087.activeEncounters,
+              {
+                id: crypto.randomUUID(),
+                x: 0, y: 0, // runtime overlay mapping fills these
+                kind,
+                absoluteDepth,
+                rewardPE: kind === "087-1" ? 150 : 40,
+                expiresAt: Date.now() + (kind === "087-1" ? 9000 : 6000),
+              }
+            ]
+          }
+        }));
+      },
+
+      resolveEncounter: (id: string) => {
+        set((state) => {
+          const encounterIndex = state.scp087.activeEncounters.findIndex(e => e.id === id);
+          if (encounterIndex < 0) return state;
+          
+          const encounter = state.scp087.activeEncounters[encounterIndex];
+          const newEncounters = [...state.scp087.activeEncounters];
+          newEncounters.splice(encounterIndex, 1);
+          
+          return {
+            ...state,
+            scp087: {
+              ...state.scp087,
+              paranoiaEnergy: state.scp087.paranoiaEnergy + encounter.rewardPE,
+              currentDepth: encounter.kind === "087-1" 
+                ? Math.max(0, state.scp087.currentDepth - 13)
+                : state.scp087.currentDepth,
+              depth: encounter.kind === "087-1"
+                ? Math.max(0, state.scp087.depth - 13)
+                : state.scp087.depth,
+              activeEncounters: newEncounters
+            }
+          };
+        });
+      },
+
+      cullExpiredEncounters: () => {
+        set((state) => {
+          const now = Date.now();
+          const validEncounters = state.scp087.activeEncounters.filter(e => e.expiresAt > now);
+          
+          if (validEncounters.length === state.scp087.activeEncounters.length) return state;
+          
+          return {
+            ...state,
+            scp087: {
+              ...state.scp087,
+              activeEncounters: validEncounters
+            }
+          };
+        });
       },
 
       // SCP-173 Actions
@@ -327,13 +503,15 @@ export const useGameStore = create<GameState & GameActions>()(
             newState.scp087.currentDepth += newState.scp087.upgrades.team.owned;
           }
           
-          // Update personnel positions
-          newState.scp087.personnel = newState.scp087.personnel.map(person => ({
-            ...person,
-            position: person.direction === 'down' 
-              ? person.position + 0.5 
-              : person.position - 0.5
-          })).filter(person => person.position >= 0 && person.position < 8);
+          // Update personnel positions (legacy)
+          if (newState.scp087.oldPersonnel) {
+            newState.scp087.oldPersonnel = newState.scp087.oldPersonnel.map(person => ({
+              ...person,
+              position: person.direction === 'down' 
+                ? person.position + 0.5 
+                : person.position - 0.5
+            })).filter(person => person.position >= 0 && person.position < 8);
+          }
           
           // Decay flashlight battery slightly over time
           if (newState.scp087.flashlightBattery > 0 && !newState.scp087.flashlightRecharging) {
