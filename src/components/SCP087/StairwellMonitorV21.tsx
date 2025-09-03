@@ -200,9 +200,13 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
     // footer metrics
     out.push({text: `  DEPTH: ${Math.round(depth).toString().padStart(4, " ")} │`});
     out.push({text: `  BATT:  ${String(Math.round((f.charge / f.capacity) * 100)).padStart(3, " ")}%  │`});
-    out.push({text: `               │`});
+    out.push({text: `  VIEW:  ${start}-${start + (TICKS_VISIBLE-1) * STEP} │`});
     const contacts = activeEncounters.length;
     out.push({text: `PERSONNEL: ${personnel.length}/3`});
+    // Debug: show personnel positions
+    personnel.forEach(p => {
+      out.push({text: `${p.name.slice(0,8)}: D${Math.round(p.absoluteDepth)} ${p.active ? 'ACT' : 'IDL'}`});
+    });
     out.push({text: `CONTACTS: ${contacts}`});
     if (contacts > 0) out.push({text: `║ ANOMALOUS READINGS ║`});
 

@@ -451,7 +451,7 @@ export const useGameStore = create<GameState & GameActions>()(
         set((state) => {
           if (!state.scp087.teamActive) return state;
           
-          const baseSpeed = 18 * (state.scp087.flashlight.on ? 1 : 0.6);
+          const baseSpeed = 5 * (state.scp087.flashlight.on ? 1 : 0.6); // Reduced from 18 to 5
           const newPersonnel = state.scp087.personnel.map(p => {
             if (!p.active) return p;
             
