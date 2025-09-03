@@ -293,6 +293,12 @@ export const useGameStore = create<GameState & GameActions>()(
       // SCP-087 Actions - Personnel Management
       toggleTeamExploration: () => {
         set((state) => {
+          // Safety check - ensure personnel exists
+          if (!state.scp087.personnel || !Array.isArray(state.scp087.personnel)) {
+            console.error("Personnel not initialized, cannot toggle team");
+            return state;
+          }
+          
           const newTeamActive = !state.scp087.teamActive;
           return {
             ...state,
@@ -311,6 +317,13 @@ export const useGameStore = create<GameState & GameActions>()(
 
       upgradePersonnel: (personnelId: string, upgradeType: string) => {
         const state = get();
+        
+        // Safety check - ensure personnel exists
+        if (!state.scp087.personnel || !Array.isArray(state.scp087.personnel)) {
+          console.error("Personnel not initialized, cannot upgrade");
+          return;
+        }
+        
         const personnel = state.scp087.personnel.find(p => p.id === personnelId);
         if (!personnel) return;
 
@@ -347,6 +360,12 @@ export const useGameStore = create<GameState & GameActions>()(
         const state = get();
         const cost = 100;
         if (state.scp087.paranoiaEnergy < cost) return;
+        
+        // Safety check - ensure personnel exists
+        if (!state.scp087.personnel || !Array.isArray(state.scp087.personnel)) {
+          console.error("Personnel not initialized, cannot replace");
+          return;
+        }
 
         const roles = ["Scout", "Research", "Handler"] as const;
         const names = {
@@ -443,19 +462,45 @@ export const useGameStore = create<GameState & GameActions>()(
 
       // New SCP-087 Actions for Terminal v2.1
       toggleFlashlight: () => {
-        set((state) => ({
-          scp087: {
-            ...state.scp087,
-            flashlight: {
-              ...state.scp087.flashlight,
-              on: !state.scp087.flashlight.on
-            }
+        set((state) => {
+          // Safety check - ensure flashlight exists
+          if (!state.scp087.flashlight) {
+            console.error("Flashlight not initialized, resetting to default");
+            return {
+              ...state,
+              scp087: {
+                ...state.scp087,
+                flashlight: {
+                  on: true,
+                  charge: 100,
+                  capacity: 100,
+                  drainPerSec: 6,
+                  rechargePerSec: 22,
+                  lowThreshold: 20,
+                }
+              }
+            };
           }
-        }));
+          
+          return {
+            scp087: {
+              ...state.scp087,
+              flashlight: {
+                ...state.scp087.flashlight,
+                on: !state.scp087.flashlight.on
+              }
+            }
+          };
+        });
       },
 
       drainFlashlight: (dt: number) => {
         set((state) => {
+          // Safety check - ensure flashlight exists
+          if (!state.scp087.flashlight) {
+            return state;
+          }
+          
           const f = state.scp087.flashlight;
           if (!f.on) return state;
           
@@ -477,6 +522,11 @@ export const useGameStore = create<GameState & GameActions>()(
 
       rechargeFlashlightV2: (dt: number) => {
         set((state) => {
+          // Safety check - ensure flashlight exists
+          if (!state.scp087.flashlight) {
+            return state;
+          }
+          
           const f = state.scp087.flashlight;
           const newCharge = Math.min(f.capacity, f.charge + f.rechargePerSec * dt);
           return {
@@ -496,7 +546,8 @@ export const useGameStore = create<GameState & GameActions>()(
 
       movePersonnel: (dt: number) => {
         set((state) => {
-          if (!state.scp087.teamActive) return state;
+          // Safety check - ensure personnel and flashlight exist
+          if (!state.scp087.teamActive || !state.scp087.personnel || !state.scp087.flashlight) return state;
           
           const baseSpeed = 5 * (state.scp087.flashlight.on ? 1 : 0.6); // Reduced from 18 to 5
           const newPersonnel = state.scp087.personnel.map(p => {
