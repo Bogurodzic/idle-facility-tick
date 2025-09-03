@@ -42,9 +42,45 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
   };
   
   const personnel = scp087?.personnel?.length ? scp087.personnel : [
-    { id: "p1", name: "Operative Δ-7", role: "Scout" as const, absoluteDepth: 0, lane: "L" as const },
-    { id: "p2", name: "Tech A. Morse", role: "Research" as const, absoluteDepth: 68, lane: "R" as const },
-    { id: "p3", name: "Handler R-3", role: "Handler" as const, absoluteDepth: 136, lane: "L" as const },
+    { 
+      id: "p1", 
+      name: "Operative Δ-7", 
+      role: "Scout" as const, 
+      absoluteDepth: 0, 
+      lane: "L" as const,
+      level: 1,
+      experience: 0,
+      speed: 1.2,
+      survivalRate: 0.9,
+      active: false,
+      status: "active" as const
+    },
+    { 
+      id: "p2", 
+      name: "Tech A. Morse", 
+      role: "Research" as const, 
+      absoluteDepth: 68, 
+      lane: "R" as const,
+      level: 1,
+      experience: 0,
+      speed: 0.8,
+      survivalRate: 0.7,
+      active: false,
+      status: "active" as const
+    },
+    { 
+      id: "p3", 
+      name: "Handler R-3", 
+      role: "Handler" as const, 
+      absoluteDepth: 136, 
+      lane: "L" as const,
+      level: 1,
+      experience: 0,
+      speed: 1.0,
+      survivalRate: 0.95,
+      active: false,
+      status: "active" as const
+    },
   ];
   
   // Convert old encounters format to new format if needed
