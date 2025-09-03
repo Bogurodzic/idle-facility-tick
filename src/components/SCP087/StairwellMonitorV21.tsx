@@ -19,6 +19,8 @@ const TICKS_VISIBLE = 9;  // number of labeled ticks in viewport
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
 export default function StairwellMonitorV21({ width = 24 }: Props) {
+  console.log("StairwellMonitorV21 loading - PersonnelUpgradeModal removed");
+  
   const scp087 = useGameStore(state => state.scp087);
   const toggleFlashlight = useGameStore(state => state.toggleFlashlight);
   const drainFlashlight = useGameStore(state => state.drainFlashlight);

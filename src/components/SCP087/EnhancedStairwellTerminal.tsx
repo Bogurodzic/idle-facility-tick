@@ -22,6 +22,8 @@ const TICKS_VISIBLE = 9;
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
 export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
+  console.log("EnhancedStairwellTerminal loading - PersonnelUpgradeModal should be completely removed");
+  
   const scp087 = useGameStore(state => state.scp087);
   const toggleFlashlight = useGameStore(state => state.toggleFlashlight);
   const drainFlashlight = useGameStore(state => state.drainFlashlight);
