@@ -69,7 +69,9 @@ export default {
 					'914': 'hsl(var(--scp-914))'
 				},
 				containment: 'hsl(var(--containment))',
-				anomalous: 'hsl(var(--anomalous))'
+				anomalous: 'hsl(var(--anomalous))',
+				'terminal-green': 'hsl(var(--terminal-green))',
+				'terminal-bg': 'hsl(var(--terminal-bg))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

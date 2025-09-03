@@ -7,17 +7,15 @@ import { AlertTriangle, TrendingDown, Shield, Users, Flashlight } from "lucide-r
 import { useState, useEffect } from "react";
 import { EnhancedStairwellVisualization } from "./SCP087/EnhancedStairwellVisualization";
 import { UpgradeCard } from "./SCP087/UpgradeCard";
-import StairwellMonitorV21 from "./SCP087/StairwellMonitorV21";
+import EnhancedStairwellTerminal from "./SCP087/EnhancedStairwellTerminal";
 
 export const SCP087Panel = () => {
   const { 
     scp087, 
-    toggleTeamExploration, 
     purchaseSCP087Upgrade 
   } = useGameStore();
   
   const [recentEncounter, setRecentEncounter] = useState(false);
-  const [isDescending, setIsDescending] = useState(false);
 
   useEffect(() => {
     if (Date.now() - scp087.lastEncounter < 3000) {
@@ -43,12 +41,6 @@ export const SCP087Panel = () => {
     }
   };
 
-  const handleToggleTeam = () => {
-    setIsDescending(true);
-    toggleTeamExploration();
-    setTimeout(() => setIsDescending(false), 1000);
-  };
-
   return (
     <Card className="facility-panel">
       <CardHeader className="pb-3">
@@ -67,47 +59,8 @@ export const SCP087Panel = () => {
       </CardHeader>
       
       <CardContent className="space-y-4">
-        {/* Terminal v2.1 Stairwell Monitor */}
-        <StairwellMonitorV21 />
-
-        {/* Resources */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-muted/50 p-3 rounded">
-            <div className="text-sm text-muted-foreground">Paranoia Energy</div>
-            <div className="text-2xl font-mono text-scp-087">
-              {formatNumber(scp087.paranoiaEnergy)}
-            </div>
-          </div>
-          <div className="bg-muted/50 p-3 rounded">
-            <div className="text-sm text-muted-foreground">Current Depth</div>
-            <div className="text-2xl font-mono text-foreground">
-              {formatNumber(scp087.currentDepth)}
-            </div>
-          </div>
-        </div>
-
-        {/* Team Status Indicator */}
-        {scp087.teamDeployed && (
-          <div className="space-y-2">
-            <div className="text-sm text-muted-foreground">Exploration Team Deployed</div>
-            <Progress value={((Date.now() % 5000) / 5000) * 100} className="h-2" />
-          </div>
-        )}
-
-        {/* Team Control Button */}
-        <Button 
-          onClick={handleToggleTeam}
-          className="w-full bg-scp-087 hover:bg-scp-087/80 text-black font-mono"
-          disabled={recentEncounter}
-          variant={scp087.teamDeployed ? "destructive" : "default"}
-        >
-          {recentEncounter 
-            ? "Recovering from Encounter..." 
-            : scp087.teamDeployed 
-              ? "RECALL TEAM" 
-              : "DEPLOY TEAM"
-          }
-        </Button>
+        {/* Enhanced Terminal with Integrated Controls */}
+        <EnhancedStairwellTerminal />
 
         {/* Upgrades */}
         <div className="space-y-3">
