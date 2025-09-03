@@ -4,6 +4,7 @@ import { FacilityHeader } from "@/components/FacilityHeader";
 import { SCP087Panel } from "@/components/SCP087Panel";
 import { GameTicker } from "@/components/GameTicker";
 import { DClassManagement } from "@/components/DClassManagement";
+import { DClassEventConsole } from "@/components/DClassEventConsole";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -100,6 +101,7 @@ const Index = () => {
         <GameTicker />
         <FacilityHeader />
         <DClassManagement />
+        <DClassEventConsole />
         
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           <SCP087Panel />

@@ -65,6 +65,15 @@ export interface SCP914State {
   currentSetting: string;
 }
 
+export interface DClassEvent {
+  id: string;
+  timestamp: number;
+  message: string;
+  severity: 'info' | 'warning' | 'critical';
+  scpId?: string;
+  dClassId?: string;
+}
+
 export interface DClassInventory {
   count: number;
   capacity: number;
@@ -101,6 +110,7 @@ export interface GameState {
     generation: DClassFacilityUpgrade;
     survival: DClassFacilityUpgrade;
   };
+  dClassEvents: DClassEvent[];
   gameStarted: boolean;
   tickInterval: number;
 }
@@ -381,6 +391,7 @@ const defaultState: GameState = {
     generation: { cost: 150, level: 0 },
     survival: { cost: 300, level: 0 }
   },
+  dClassEvents: [],
   gameStarted: false,
   tickInterval: 1000
 };
@@ -408,6 +419,7 @@ type GameActions = {
   assignDClass: (scpId: string, quantity: number) => void;
   processDClassCasualties: (casualties: number) => void;
   upgradeDClassFacility: (upgradeType: "capacity" | "generation" | "survival") => void;
+  addDClassEvent: (message: string, severity?: 'info' | 'warning' | 'critical', scpId?: string) => void;
   
   // SCP-173 Actions
   blink: () => void;
@@ -461,6 +473,14 @@ export const useGameStore = create<GameState & GameActions>()(
             }
             
             const newTeamActive = !state.scp087.teamActive;
+            const { addDClassEvent } = get();
+            
+            if (newTeamActive) {
+              addDClassEvent("D-Class exploration team deployed to SCP-087 stairwell", 'info', 'SCP-087');
+            } else {
+              addDClassEvent("D-Class exploration team recalled from SCP-087", 'warning', 'SCP-087');
+            }
+            
             return {
               ...state,
               scp087: {
@@ -867,6 +887,14 @@ export const useGameStore = create<GameState & GameActions>()(
             const bonusPE = basePE * scoutPEBonus;
             const totalPE = Math.round(basePE + bonusPE);
             
+            // Generate event based on encounter type
+            const { addDClassEvent } = get();
+            if (encounter.kind === "087-1") {
+              addDClassEvent(`SCP-087-1 encounter resolved at ${Math.round(encounter.absoluteDepth)}m - Subject extraction successful`, 'warning', 'SCP-087');
+            } else {
+              addDClassEvent(`Anomalous event documented at ${Math.round(encounter.absoluteDepth)}m - Research data recovered`, 'info', 'SCP-087');
+            }
+            
             const newEncounters = [...state.scp087.activeEncounters];
             newEncounters.splice(encounterIndex, 1);
             
@@ -944,6 +972,34 @@ export const useGameStore = create<GameState & GameActions>()(
         },
 
         processDClassCasualties: (casualties: number) => {
+          const { addDClassEvent } = get();
+          
+          // Generate casualty events
+          for (let i = 0; i < casualties; i++) {
+            const events = [
+              "D-{id} reported 'massive face in darkness' before signal lost at {depth}m",
+              "D-{id}'s flashlight failed at {depth}m. Subject abandoned mission, whereabouts unknown",
+              "D-{id} began screaming incoherently at {depth}m. Terminated own radio contact",
+              "Stairwell collapse detected at {depth}m. D-{id} presumed crushed",
+              "Reality distortion event at {depth}m. D-{id} timeline divergence confirmed",
+              "D-{id} encountered SCP-087-1 at {depth}m. No response to radio contact",
+              "Temperature anomaly at {depth}m. D-{id}'s thermal signature disappeared",
+              "D-{id} reported 'stairs going up now' at {depth}m. GPS shows continued descent",
+              "Audio feed from D-{id} at {depth}m contained only child crying. Signal terminated",
+              "D-{id} vital signs flatlined at {depth}m. Body recovery impossible"
+            ];
+            
+            const randomEvent = events[Math.floor(Math.random() * events.length)];
+            const dClassId = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+            const depth = Math.floor(Math.random() * 1000) + 100;
+            
+            const message = randomEvent
+              .replace('{id}', dClassId)
+              .replace('{depth}', depth.toString());
+              
+            addDClassEvent(message, 'critical', 'SCP-087');
+          }
+          
           set((state) => ({
             ...state,
             dClassInventory: {
@@ -999,6 +1055,27 @@ export const useGameStore = create<GameState & GameActions>()(
             }
 
             return newState;
+          });
+        },
+
+        addDClassEvent: (message: string, severity: 'info' | 'warning' | 'critical' = 'info', scpId?: string) => {
+          set((state) => {
+            const newEvent: DClassEvent = {
+              id: crypto.randomUUID(),
+              timestamp: Date.now(),
+              message,
+              severity,
+              scpId
+            };
+
+            // Keep only the last 50 events to prevent memory bloat
+            const events = [...state.dClassEvents, newEvent];
+            const trimmedEvents = events.slice(-50);
+
+            return {
+              ...state,
+              dClassEvents: trimmedEvents
+            };
           });
         },
 
@@ -1065,6 +1142,32 @@ export const useGameStore = create<GameState & GameActions>()(
                 newState.dClassInventory.count + autoGenRate
               );
             }
+
+            // Generate procedural D-Class events occasionally
+            if (Math.random() < 0.02) { // 2% chance per tick for atmospheric events
+              const { addDClassEvent } = get();
+              const atmosphericEvents = [
+                "New D-Class personnel batch delivered from Site-17",
+                "D-Class psychological evaluation protocols updated",
+                "Monthly amnesiacs distribution completed",
+                "D-Class housing wing sanitation in progress",
+                "Security sweep of D-Class quarters completed - no contraband found",
+                "D-Class meal provision systems functioning nominally",
+                "Automated D-Class interview protocols initiated",
+                "D-Class medical examinations scheduled for next rotation",
+                "Foundation Ethics Committee review of D-Class protocols pending"
+              ];
+              
+              const randomMessage = atmosphericEvents[Math.floor(Math.random() * atmosphericEvents.length)];
+              addDClassEvent(randomMessage, 'info');
+            }
+
+            // Simulate D-Class casualties during active exploration
+            if (newState.scp087.teamActive && newState.dClassInventory.assigned > 0 && Math.random() < 0.005) {
+              const { processDClassCasualties } = get();
+              const casualtyCount = Math.min(1, newState.dClassInventory.assigned); // Usually 1 casualty at a time
+              processDClassCasualties(casualtyCount);
+            }
             
             // Update personnel positions (legacy)
             if (newState.scp087.oldPersonnel) {
@@ -1128,6 +1231,10 @@ export const useGameStore = create<GameState & GameActions>()(
 
         startGame: () => {
           set({ gameStarted: true });
+          
+          // Add initial D-Class system status event
+          const { addDClassEvent } = get();
+          addDClassEvent("D-Class Management System Online - All containment protocols active", 'info');
         },
 
         resetFacility: () => {

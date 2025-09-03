@@ -79,7 +79,7 @@ export const DClassManagement = () => {
               <span className="text-xs font-semibold text-muted-foreground">AVAILABLE</span>
             </div>
             <div className="text-lg font-mono text-foreground">
-              {dClassInventory.count}
+              {Math.floor(dClassInventory.count)}
             </div>
             <div className="text-xs text-muted-foreground">
               Capacity: {dClassInventory.capacity}
