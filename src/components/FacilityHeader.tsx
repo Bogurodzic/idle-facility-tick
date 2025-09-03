@@ -1,10 +1,11 @@
 import { useGameStore } from "@/store/gameStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, AlertTriangle, Brain } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Shield, AlertTriangle, Brain, RotateCcw } from "lucide-react";
 
 export const FacilityHeader = () => {
-  const { facility, scp087, scp173, scp999 } = useGameStore();
+  const { facility, scp087, scp173, scp999, resetFacility } = useGameStore();
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -64,6 +65,20 @@ export const FacilityHeader = () => {
                 <span className="font-bold scp-classification">BREACH ACTIVE</span>
               </div>
             )}
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (confirm("Reset all progress? This cannot be undone!")) {
+                  resetFacility();
+                }
+              }}
+              className="border-destructive/20 hover:bg-destructive/10 text-destructive"
+            >
+              <RotateCcw className="w-4 h-4 mr-1" />
+              Reset Save
+            </Button>
           </div>
         </div>
         
