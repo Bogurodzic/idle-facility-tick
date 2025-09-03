@@ -131,8 +131,10 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
 
       setT(p => p + dt);
 
-      if (f.on) drainFlashlight(dt); 
-      else rechargeFlashlightV2(dt * 0.7);
+      if (f.on && f.charge > 0) drainFlashlight(dt); 
+      else if (!f.on && scp087.upgrades.autoRecharge?.owned > 0) {
+        rechargeFlashlightV2(dt * 0.7);
+      }
       movePersonnel(dt);
       cullExpiredEncounters();
 
@@ -307,10 +309,12 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
 
   // Memoized flashlight button to prevent flickering
   const flashlightButton = useMemo(() => {
-    const speedEffect = f.on ? 100 : 60;
-    const drainRate = f.on ? "6.0/s" : "0/s";
-    const rechargeRate = f.on ? "0/s" : "22/s";
-    const encountersActive = f.on ? "Active" : "None";
+    const isDepleted = f.charge === 0;
+    const speedEffect = f.on && !isDepleted ? 100 : 60;
+    const drainRate = f.on && !isDepleted ? "6.0/s" : "0/s";
+    const autoRechargeLevel = scp087.upgrades.autoRecharge?.owned || 0;
+    const rechargeRate = !f.on && autoRechargeLevel > 0 ? `${22 + (autoRechargeLevel - 1) * 5}/s` : "0/s";
+    const encountersActive = f.on && !isDepleted ? "Active" : "None";
     
     return (
       <TooltipProvider>
@@ -318,17 +322,26 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
           <TooltipTrigger asChild>
             <Button
               size="sm"
-              variant={f.on ? "default" : "outline"}
-              onClick={() => toggleFlashlight()}
+              variant={isDepleted ? "destructive" : f.on ? "default" : "outline"}
+              onClick={() => {
+                if (isDepleted) {
+                  // Prevent toggling when depleted
+                  return;
+                }
+                toggleFlashlight();
+              }}
+              disabled={isDepleted}
               className={`font-mono text-xs transition-all duration-300 ${
-                f.on 
-                  ? "bg-terminal-green/20 text-terminal-green border-terminal-green/40 hover:bg-terminal-green/30" 
-                  : "border-muted-foreground/40 hover:border-terminal-green/40"
+                isDepleted
+                  ? "bg-destructive/20 text-destructive border-destructive/40 hover:bg-destructive/30"
+                  : f.on 
+                    ? "bg-terminal-green/20 text-terminal-green border-terminal-green/40 hover:bg-terminal-green/30" 
+                    : "border-muted-foreground/40 hover:border-terminal-green/40"
               }`}
             >
               <div className="flex items-center gap-1">
-                {f.on ? <Flashlight className="w-3 h-3" /> : <FlashlightOff className="w-3 h-3" />}
-                <span>FLASHLIGHT: {f.on ? "ON" : "OFF"}</span>
+                {isDepleted ? <FlashlightOff className="w-3 h-3" /> : f.on ? <Flashlight className="w-3 h-3" /> : <FlashlightOff className="w-3 h-3" />}
+                <span>FLASHLIGHT: {isDepleted ? "DEPLETED" : f.on ? "ON" : "OFF"}</span>
               </div>
             </Button>
           </TooltipTrigger>

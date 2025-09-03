@@ -98,7 +98,20 @@ const initialSCP087Upgrades: Record<string, Upgrade> = {
     effect: 0.01,
     tier: 'equipment',
     milestones: [5, 10, 25, 50, 100],
-    synergyWith: ['tacticalModules']
+    synergyWith: ['tacticalModules', 'autoRecharge']
+  },
+  autoRecharge: {
+    id: 'autoRecharge',
+    name: 'Auto-Recharge System',
+    description: 'Automated battery charging system. Gradually recharges flashlight when OFF. Each level increases recharge rate.',
+    cost: 150,
+    baseCost: 150,
+    owned: 0,
+    effect: 22,
+    tier: 'equipment',
+    milestones: [3, 7, 15],
+    unlockCondition: { upgradeId: 'advancedBattery', level: 3 },
+    synergyWith: ['advancedBattery']
   },
   tacticalModules: {
     id: 'tacticalModules',
@@ -269,7 +282,7 @@ const defaultState: GameState = {
       charge: 100,
       capacity: 100,
       drainPerSec: 6,
-      rechargePerSec: 22,
+      rechargePerSec: 0,
       lowThreshold: 20,
     },
     personnel: [
@@ -688,8 +701,7 @@ export const useGameStore = create<GameState & GameActions>()(
                 ...state.scp087,
                 flashlight: {
                   ...f,
-                  charge: newCharge,
-                  on: newCharge > 0 ? f.on : false
+                  charge: newCharge
                 },
                 flashlightBattery: newCharge // sync legacy field
               }
@@ -703,17 +715,23 @@ export const useGameStore = create<GameState & GameActions>()(
             if (!state.scp087.flashlight) {
               return state;
             }
-            
+
             const f = state.scp087.flashlight;
-            const newCharge = Math.min(f.capacity, f.charge + f.rechargePerSec * dt);
+            
+            // Calculate recharge rate from auto-recharge upgrade
+            const autoRechargeUpgrade = state.scp087.upgrades.autoRecharge;
+            const baseRate = autoRechargeUpgrade ? autoRechargeUpgrade.effect : 0;
+            const upgradeLevel = autoRechargeUpgrade ? autoRechargeUpgrade.owned : 0;
+            const rechargeRate = upgradeLevel > 0 ? baseRate + ((upgradeLevel - 1) * 5) : 0;
+            
+            const newCharge = Math.min(f.capacity, f.charge + rechargeRate * dt);
             return {
               ...state,
               scp087: {
                 ...state.scp087,
                 flashlight: {
                   ...f,
-                  charge: newCharge,
-                  on: newCharge > 0 && !f.on ? true : f.on
+                  charge: newCharge
                 },
                 flashlightBattery: newCharge // sync legacy field
               }
