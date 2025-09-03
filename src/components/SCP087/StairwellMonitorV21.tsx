@@ -27,17 +27,47 @@ export default function StairwellMonitorV21({ width = 29 }: Props) {
   const resolveEncounter = useGameStore(state => state.resolveEncounter);
   const cullExpiredEncounters = useGameStore(state => state.cullExpiredEncounters);
   
-  // Add defensive checks to prevent crashes during store initialization
-  console.log('StairwellMonitorV21 - scp087:', scp087);
-  console.log('StairwellMonitorV21 - flashlight:', scp087?.flashlight);
+  // Handle legacy store format - create working defaults
+  const flashlight = scp087?.flashlight || {
+    on: (scp087?.flashlightBattery || 100) > 0,
+    charge: scp087?.flashlightBattery || 100,
+    capacity: 100,
+    drainPerSec: 6,
+    rechargePerSec: 22,
+    lowThreshold: 20,
+  };
   
-  if (!scp087 || !scp087.flashlight) {
-    console.log('StairwellMonitorV21 - Store not ready yet, showing loading state');
+  const personnel = scp087?.personnel?.length ? scp087.personnel : [
+    { id: "p1", name: "Operative Δ-7", role: "Scout" as const, absoluteDepth: 0, lane: "L" as const },
+    { id: "p2", name: "Tech A. Morse", role: "Research" as const, absoluteDepth: 68, lane: "R" as const },
+    { id: "p3", name: "Handler R-3", role: "Handler" as const, absoluteDepth: 136, lane: "L" as const },
+  ];
+  
+  // Convert old encounters format to new format if needed
+  const activeEncounters: Encounter[] = scp087?.activeEncounters?.map((e: any) => {
+    // Handle both old and new formats
+    if ('kind' in e) {
+      // Already new format
+      return e as Encounter;
+    } else {
+      // Old format - convert
+      return {
+        id: e.id,
+        x: 0, y: 0,
+        kind: e.type === "hostile" ? "087-1" as const : "anomaly" as const,
+        absoluteDepth: (e.position || 0) * 34,
+        rewardPE: e.type === "hostile" ? 150 : 40,
+        expiresAt: Date.now() + 10000
+      } as Encounter;
+    }
+  }) || [];
+  
+  if (!scp087) {
     return <div className="p-4 text-emerald-400 font-mono">Initializing SCP-087 Terminal...</div>;
   }
   
-  const depth = scp087.currentDepth;
-  const f = scp087.flashlight;
+  const depth = scp087.currentDepth || scp087.depth || 0;
+  const f = flashlight;
 
   const [t, setT] = useState(0);
   const raf = useRef<number | null>(null);
@@ -107,10 +137,10 @@ export default function StairwellMonitorV21({ width = 29 }: Props) {
       const label = pad3(Math.max(0, d));
       // columns: we keep a narrow frame like the sample
       // Using a two-column pipe with a right wall: "│ … │ █"
-      const has0871 = scp087.activeEncounters.some(e => e.kind === "087-1" && within(e.absoluteDepth, d));
-      const hasAnom = scp087.activeEncounters.some(e => e.kind === "anomaly" && within(e.absoluteDepth, d));
-      const agentL = scp087.personnel.some(p => p.lane === "L" && within(p.absoluteDepth, d));
-      const agentR = scp087.personnel.some(p => p.lane === "R" && within(p.absoluteDepth, d));
+      const has0871 = activeEncounters.some(e => e.kind === "087-1" && within(e.absoluteDepth, d));
+      const hasAnom = activeEncounters.some(e => e.kind === "anomaly" && within(e.absoluteDepth, d));
+      const agentL = personnel.some(p => p.lane === "L" && within(p.absoluteDepth, d));
+      const agentR = personnel.some(p => p.lane === "R" && within(p.absoluteDepth, d));
 
       // Top connector
       out.push({text: `    │ ◇┌─┴─┐ │ ${agentR ? "█" : " "}`});
@@ -135,21 +165,21 @@ export default function StairwellMonitorV21({ width = 29 }: Props) {
     out.push({text: `    DEPTH: ${Math.round(depth).toString().padStart(4, " ")}  │`});
     out.push({text: `    BATT:  ${String(Math.round((f.charge / f.capacity) * 100)).padStart(3, " ")}%   │`});
     out.push({text: `                 │`});
-    out.push({text: `PERSONNEL: ${scp087.personnel.length}/3`});
-    const contacts = scp087.activeEncounters.length;
+    out.push({text: `PERSONNEL: ${personnel.length}/3`});
+    const contacts = activeEncounters.length;
     out.push({text: `CONTACTS: ${contacts}`});
     out.push({text: `║ SIGNAL DEGRADATION DETECTED ║`});
     if (contacts > 0) out.push({text: `║ ANOMALOUS READINGS ║`});
 
     return out;
-  }, [depth, f.charge, f.capacity, scp087.activeEncounters, scp087.personnel, f.lowThreshold, battBar, start]);
+  }, [depth, f.charge, f.capacity, activeEncounters, personnel, f.lowThreshold, battBar, start]);
 
   // overlay click mapping (encounters)
   // Map each encounter's absoluteDepth to nearest visible tick Y.
   const overlay = useMemo(() => {
     const map: { id: string; x: number; y: number; label: string; color: string }[] = [];
     const y0 = 7; // first tick starts after header lines
-    scp087.activeEncounters.forEach(e => {
+    activeEncounters.forEach(e => {
       const tickIndex = Math.round((e.absoluteDepth - start) / STEP);
       if (tickIndex >= 0 && tickIndex < TICKS_VISIBLE) {
         const y = y0 + tickIndex * 4 + 1; // label line per block
@@ -164,7 +194,7 @@ export default function StairwellMonitorV21({ width = 29 }: Props) {
       }
     });
     return map;
-  }, [scp087.activeEncounters, start]);
+  }, [activeEncounters, start]);
 
   // Measure monospace char size for overlay positioning
   const [cell, setCell] = useState({w: 8, h: 14});
