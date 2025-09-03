@@ -4,7 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Upgrade } from "@/store/gameStore";
 import { LucideIcon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 
 interface UpgradeCardProps {
   upgrade: Upgrade;
@@ -14,7 +14,7 @@ interface UpgradeCardProps {
   formatCurrency: (num: number) => string;
 }
 
-export const UpgradeCard = ({ 
+const UpgradeCardComponent = ({ 
   upgrade, 
   icon: Icon, 
   canAfford, 
@@ -127,7 +127,26 @@ export const UpgradeCard = ({
     }
   };
 
-  const visuals = getUpgradeVisuals();
+  const visuals = useMemo(() => getUpgradeVisuals(), [upgrade.id, upgrade.owned]);
+
+  // Enhanced description with detailed bonuses
+  const getEnhancedDescription = () => {
+    if (upgrade.id === 'advancedBattery') {
+      if (upgrade.owned > 0) {
+        const currentBonus = upgrade.owned;
+        const nextBonus = currentBonus + 1;
+        const efficiency = Math.round((1 - Math.pow(0.99, currentBonus)) * 100);
+        return `Advanced Battery System - Increases flashlight efficiency by 1% per level. 
+        
+Current Status: Level ${currentBonus} 
+• Battery Efficiency: +${currentBonus}% 
+• Power Consumption: -${efficiency}%
+• Next Level Bonus: +${nextBonus}% efficiency`;
+      }
+      return upgrade.description;
+    }
+    return upgrade.description;
+  };
 
   return (
     <div className={cn(
@@ -176,11 +195,9 @@ export const UpgradeCard = ({
             </h4>
           </div>
           
-          <p className="text-xs text-muted-foreground mb-2">
-            {upgrade.id === 'advancedBattery' && upgrade.owned > 0 
-              ? `Increases flashlight efficiency by 1% per level. Currently: Level ${upgrade.owned} (+${upgrade.owned}% efficiency)`
-              : upgrade.description}
-          </p>
+          <div className="text-xs text-muted-foreground mb-2 whitespace-pre-line">
+            {getEnhancedDescription()}
+          </div>
           
           {/* Visual effect indicator for certain upgrades */}
           {upgrade.owned > 0 && upgrade.id === 'advancedBattery' && (
@@ -218,3 +235,5 @@ export const UpgradeCard = ({
     </div>
   );
 };
+
+export const UpgradeCard = memo(UpgradeCardComponent);

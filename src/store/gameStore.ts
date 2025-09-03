@@ -82,7 +82,7 @@ const initialSCP087Upgrades: Record<string, Upgrade> = {
   advancedBattery: {
     id: 'advancedBattery',
     name: 'Advanced Battery System',
-    description: 'Increases flashlight efficiency by +1% per level',
+    description: 'Increases flashlight efficiency by +1% per level. Reduces power consumption and extends operational time.',
     cost: 5,
     owned: 0,
     effect: 0.01
