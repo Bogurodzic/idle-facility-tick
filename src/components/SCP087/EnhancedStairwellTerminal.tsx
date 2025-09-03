@@ -27,6 +27,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   const toggleFlashlight = useGameStore(state => state.toggleFlashlight);
   const drainFlashlight = useGameStore(state => state.drainFlashlight);
   const rechargeFlashlightV2 = useGameStore(state => state.rechargeFlashlightV2);
+  const manualChargeFlashlight = useGameStore(state => state.manualChargeFlashlight);
   const movePersonnel = useGameStore(state => state.movePersonnel);
   const spawnEncounterAtDepth = useGameStore(state => state.spawnEncounterAtDepth);
   const resolveEncounter = useGameStore(state => state.resolveEncounter);
@@ -370,7 +371,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
           <Button
             size="sm"
             variant="outline"  
-            onClick={() => rechargeFlashlightV2(1)}
+            onClick={manualChargeFlashlight}
             className="font-mono text-xs hover:border-yellow-500/40 hover:text-yellow-400 transition-colors"
             disabled={f.charge >= f.capacity}
           >

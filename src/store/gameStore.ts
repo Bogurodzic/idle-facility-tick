@@ -375,6 +375,7 @@ type GameActions = {
   toggleFlashlight: () => void;
   drainFlashlight: (dt: number) => void;
   rechargeFlashlightV2: (dt: number) => void;
+  manualChargeFlashlight: () => void;
   movePersonnel: (dt: number) => void;
   spawnEncounterAtDepth: (absoluteDepth: number, kind: EncounterKind) => void;
   resolveEncounter: (id: string) => void;
@@ -709,6 +710,7 @@ export const useGameStore = create<GameState & GameActions>()(
           });
         },
 
+        // Auto-recharge only (passive from upgrade)
         rechargeFlashlightV2: (dt: number) => {
           set((state) => {
             // Safety check - ensure flashlight exists
@@ -725,6 +727,32 @@ export const useGameStore = create<GameState & GameActions>()(
             const rechargeRate = upgradeLevel > 0 ? baseRate + ((upgradeLevel - 1) * 5) : 0;
             
             const newCharge = Math.min(f.capacity, f.charge + rechargeRate * dt);
+            return {
+              ...state,
+              scp087: {
+                ...state.scp087,
+                flashlight: {
+                  ...f,
+                  charge: newCharge
+                },
+                flashlightBattery: newCharge // sync legacy field
+              }
+            };
+          });
+        },
+
+        // Manual charge (immediate, always works)
+        manualChargeFlashlight: () => {
+          set((state) => {
+            // Safety check - ensure flashlight exists
+            if (!state.scp087.flashlight) {
+              return state;
+            }
+
+            const f = state.scp087.flashlight;
+            const chargeAmount = 15; // Fixed manual charge amount
+            const newCharge = Math.min(f.capacity, f.charge + chargeAmount);
+            
             return {
               ...state,
               scp087: {
