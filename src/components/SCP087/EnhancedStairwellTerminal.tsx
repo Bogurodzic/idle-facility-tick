@@ -161,18 +161,26 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   const battBar = "█".repeat(Math.max(0, Math.min(battCells, battFill))) +
                   "░".repeat(Math.max(0, battCells - battFill));
 
-  // Progress calculation for team deployment
-  const deployProgress = scp087.teamDeployed ? ((Date.now() % 5000) / 5000) * 100 : 0;
+  // Enhanced vertical progress calculation for team deployment
+  const deployProgress = scp087.teamDeployed ? ((Date.now() % 3000) / 3000) * 100 : 0;
   const verticalProgressChars = "▁▂▃▄▅▆▇█";
   const progressIndex = Math.floor((deployProgress / 100) * (verticalProgressChars.length - 1));
-  const progressChar = scp087.teamDeployed ? verticalProgressChars[progressIndex] : "░";
+  const progressChar = scp087.teamDeployed ? 
+    `${verticalProgressChars[progressIndex]}` : 
+    "█"; // Always show full bar when not deployed for visibility
+  const progressColor = scp087.teamDeployed ? "text-terminal-green" : "text-muted-foreground";
+
+  // Calculate current speed for display
+  const baseSpeed = 5;
+  const currentSpeed = f.on && f.charge > 0 ? baseSpeed : baseSpeed * 0.6;
+  const speedPercent = Math.round((currentSpeed / baseSpeed) * 100);
 
   // Enhanced rendering with improved alignment and annotations
   type Row = { text: string; annotations?: string };
   const rows: Row[] = useMemo(() => {
     const out: Row[] = [];
 
-    // Enhanced header with progress bar
+    // Enhanced header with speed display
     out.push({text: "╔════ SCP-087 TERMINAL v3.0 ════╗"});
     out.push({text: "║ █ SECURE ██ CONTAIN ██ PROTECT ║"});
     out.push({text: "╠════════════════════════════════╣"});
@@ -180,6 +188,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
     const lightEffect = f.on ? "████" : "░░░░";
     out.push({text: `║ FLASHLIGHT: ${flashStatus} [${battBar}] ║`});
     out.push({text: `║ BEAM: ${lightEffect}  DEPTH: ${String(Math.round(depth)).padStart(5, " ")}m  TEAM: ${scp087.teamDeployed ? "ACTIVE" : "IDLE"} ║`});
+    out.push({text: `║ SPEED: ${currentSpeed.toFixed(1)}m/s (${speedPercent}%)  PROGRESS: ${scp087.teamDeployed ? "DESCENDING" : "STANDBY"} ║`});
     out.push({text: "╠════════════════════════════════╣"});
     
     const within = (abs: number, tick: number) => {
@@ -203,8 +212,8 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
       const encounterAnom = activeEncounters.find(e => e.kind === "anomaly" && within(e.absoluteDepth, d));
       const teamMember = personnel.find(p => within(p.absoluteDepth, d));
 
-      // Progress bar on left side
-      const progressCol = scp087.teamDeployed ? progressChar : "║";
+      // Enhanced progress bar on left side - always visible, animated when active
+      const progressCol = progressChar;
       
       // Enhanced top connector
       const topConnector = isCurrentDepth ? 
@@ -212,19 +221,31 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
         `${progressCol} ┌───┴───┐ `;
       out.push({text: topConnector});
       
-      // Enhanced label line with better centering
+      // Enhanced label line with better centering and always show team
       let annotations = "";
-      if (has0871) {
+      let centerChar = " ";
+      
+      // Priority: Show team ALWAYS, then add encounter info to annotations
+      if (hasTeam && teamMember) {
+        centerChar = "▲";
+        annotations = ` ◄─── ${teamMember.name} (${teamMember.role})`;
+        
+        // Add encounter info to team annotation
+        if (has0871) {
+          annotations += ` + SCP-087-1! (+${encounter087?.rewardPE || 150}PE)`;
+        } else if (hasAnom) {
+          annotations += ` + ANOMALY (+${encounterAnom?.rewardPE || 40}PE)`;
+        }
+      } else if (has0871) {
+        centerChar = "☻";
         annotations = ` ◄─── SCP-087-1! (+${encounter087?.rewardPE || 150}PE)`;
       } else if (hasAnom) {
+        centerChar = "◉";
         annotations = ` ◄─── ANOMALY (+${encounterAnom?.rewardPE || 40}PE)`;
-      } else if (hasTeam && teamMember) {
-        annotations = ` ◄─── ${teamMember.name} (${teamMember.role})`;
       } else if (isCurrentDepth) {
+        centerChar = "►";
         annotations = ` ◄─── CURRENT POSITION`;
       }
-
-      const centerChar = has0871 ? "☻" : hasAnom ? "◉" : hasTeam ? "▲" : isCurrentDepth ? "►" : " ";
       const labelLine = isCurrentDepth ? 
         `${progressCol} ║ ${centerChar} ${label} ${centerChar} ║${annotations}` :
         `${progressCol} │ ${centerChar} ${label} ${centerChar} │${annotations}`;
@@ -522,16 +543,29 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
 
         {/* Team Controls */}
         <div className="space-y-2">
-          {/* Team Status */}
-          {scp087.teamDeployed && (
-            <div className="bg-card border border-terminal-green/20 p-3 rounded">
-              <div className="flex items-center gap-2 mb-2">
-                <Users className="w-3 h-3 text-terminal-green" />
-                <span className="text-xs text-terminal-green">Team Deployed</span>
-              </div>
-              <Progress value={deployProgress} className="h-1" />
+          {/* Team Status - Always show, enhanced when active */}
+          <div className={`bg-card border p-3 rounded transition-all duration-300 ${
+            scp087.teamDeployed 
+              ? "border-terminal-green/40 bg-terminal-green/5 shadow-[0_0_10px_hsl(var(--terminal-green)_/_0.2)]" 
+              : "border-terminal-green/20"
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Users className={`w-3 h-3 transition-colors ${
+                scp087.teamDeployed ? "text-terminal-green animate-pulse" : "text-muted-foreground"
+              }`} />
+              <span className={`text-xs ${
+                scp087.teamDeployed ? "text-terminal-green" : "text-muted-foreground"
+              }`}>
+                Team Status: {scp087.teamDeployed ? "DEPLOYED" : "STANDBY"}
+              </span>
             </div>
-          )}
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <span className="text-muted-foreground">Speed:</span>
+              <span className={f.on && f.charge > 0 ? "text-terminal-green" : "text-yellow-400"}>
+                {currentSpeed.toFixed(1)}m/s ({speedPercent}%)
+              </span>
+            </div>
+          </div>
 
           {/* Encounter Alert */}
           {recentEncounter && (
