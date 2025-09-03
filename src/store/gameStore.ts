@@ -510,8 +510,8 @@ export const useGameStore = create<GameState & GameActions>()(
           
           const encounter = state.scp087.activeEncounters[encounterIndex];
           
-          // Calculate bonuses from personnel
-          const personnel = state.scp087.personnel;
+          // Calculate bonuses from personnel (with safety checks)
+          const personnel = state.scp087.personnel || [];
           const scouts = personnel.filter(p => p.role === "Scout");
           const scoutPEBonus = scouts.reduce((total, scout) => total + (scout.level * 0.1), 0); // +10% PE per scout level
 
@@ -594,8 +594,8 @@ export const useGameStore = create<GameState & GameActions>()(
         set((prevState) => {
           const newState = { ...prevState };
           
-          // Calculate research personnel bonuses
-          const personnel = newState.scp087.personnel;
+          // Calculate research personnel bonuses (with safety checks)
+          const personnel = newState.scp087.personnel || [];
           const researchers = personnel.filter(p => p.role === "Research");
           const researchIdleBonus = researchers.reduce((total, researcher) => total + (researcher.level * 0.15), 0); // +15% idle PE per research level
           
