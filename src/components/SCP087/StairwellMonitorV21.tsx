@@ -18,16 +18,14 @@ const TICKS_VISIBLE = 9;  // number of labeled ticks in viewport
 const pad3 = (n: number) => String(n).padStart(3, "0");
 
 export default function StairwellMonitorV21({ width = 29 }: Props) {
-  const { 
-    scp087,
-    toggleFlashlight,
-    drainFlashlight,
-    rechargeFlashlightV2,
-    movePersonnel,
-    spawnEncounterAtDepth,
-    resolveEncounter,
-    cullExpiredEncounters
-  } = useGameStore();
+  const scp087 = useGameStore(state => state.scp087);
+  const toggleFlashlight = useGameStore(state => state.toggleFlashlight);
+  const drainFlashlight = useGameStore(state => state.drainFlashlight);
+  const rechargeFlashlightV2 = useGameStore(state => state.rechargeFlashlightV2);
+  const movePersonnel = useGameStore(state => state.movePersonnel);
+  const spawnEncounterAtDepth = useGameStore(state => state.spawnEncounterAtDepth);
+  const resolveEncounter = useGameStore(state => state.resolveEncounter);
+  const cullExpiredEncounters = useGameStore(state => state.cullExpiredEncounters);
   
   const depth = scp087.currentDepth;
   const f = scp087.flashlight;
