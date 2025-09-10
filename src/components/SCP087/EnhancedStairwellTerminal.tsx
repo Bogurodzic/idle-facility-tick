@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useGameStore } from "../../store/gameStore";
 import type { Encounter, Personnel, EncounterKind } from "../../store/scp087.types";
 import { Button } from "../ui/button";
@@ -132,35 +132,74 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
   const [t, setT] = useState(0);
   const raf = useRef<number | null>(null);
 
-  // Animation/update loop
+  // Optimized animation loop with performance monitoring
   useEffect(() => {
-    let last = performance.now();
-    const loop = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
-
-      setT(p => p + dt);
-
-      if (f.on && f.charge > 0) drainFlashlight(dt); 
-      else if (!f.on && scp087.upgrades.autoRecharge?.owned > 0) {
-        rechargeFlashlightV2(dt * 0.7);
+    let lastTime = performance.now();
+    let frameCount = 0;
+    let lastFPSUpdate = performance.now();
+    
+    const loop = (currentTime: number) => {
+      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1); // Cap delta time
+      lastTime = currentTime;
+      
+      // FPS monitoring
+      frameCount++;
+      if (currentTime - lastFPSUpdate >= 1000) {
+        const fps = Math.round((frameCount * 1000) / (currentTime - lastFPSUpdate));
+        if (fps < 30) {
+          console.warn(`[SCP087 Terminal] Low FPS: ${fps}fps`);
+        }
+        frameCount = 0;
+        lastFPSUpdate = currentTime;
       }
-      movePersonnel(dt);
-      updateEncounterProgress();
-      cullExpiredEncounters();
 
-      if (Math.random() < 0.025 && f.on) {
-        const jitter = (Math.random() * 3 - 1.5) * STEP;
-        const targetDepth = Math.max(0, Math.round(depth / STEP) * STEP + jitter);
-        const kind: EncounterKind = Math.random() < 0.2 ? "087-1" : "anomaly";
-        spawnEncounterAtDepth(targetDepth, kind);
+      // Throttle updates to reduce CPU usage
+      if (deltaTime < 1/30) { // Cap at 30 FPS for this component
+        raf.current = requestAnimationFrame(loop);
+        return;
+      }
+
+      try {
+        setT(p => p + deltaTime);
+
+        // Only update game state if component is visible and team is active
+        if (!document.hidden && (scp087.teamActive || f.on)) {
+          if (f.on && f.charge > 0) drainFlashlight(deltaTime); 
+          else if (!f.on && scp087.upgrades.autoRecharge?.owned > 0) {
+            rechargeFlashlightV2(deltaTime * 0.7);
+          }
+          
+          movePersonnel(deltaTime);
+          updateEncounterProgress();
+          
+          // Reduce encounter spawn rate to improve performance
+          if (Math.random() < 0.015 && f.on) { // Reduced from 0.025
+            const jitter = (Math.random() * 3 - 1.5) * STEP;
+            const targetDepth = Math.max(0, Math.round(depth / STEP) * STEP + jitter);
+            const kind: EncounterKind = Math.random() < 0.2 ? "087-1" : "anomaly";
+            spawnEncounterAtDepth(targetDepth, kind);
+          }
+        }
+        
+        // Less frequent cleanup
+        if (frameCount % 60 === 0) { // Every ~2 seconds at 30fps
+          cullExpiredEncounters();
+        }
+      } catch (error) {
+        console.error('[SCP087 Terminal] Animation loop error:', error);
       }
 
       raf.current = requestAnimationFrame(loop);
     };
+    
     raf.current = requestAnimationFrame(loop);
-    return () => { if (raf.current) cancelAnimationFrame(raf.current); };
-  }, [f.on, drainFlashlight, rechargeFlashlightV2, movePersonnel, cullExpiredEncounters, spawnEncounterAtDepth, depth]);
+    return () => { 
+      if (raf.current) {
+        cancelAnimationFrame(raf.current);
+        raf.current = null;
+      }
+    };
+  }, [f.on, drainFlashlight, rechargeFlashlightV2, movePersonnel, cullExpiredEncounters, spawnEncounterAtDepth, depth, scp087.teamActive, scp087.upgrades.autoRecharge?.owned]);
 
   const anchor = Math.floor(depth / STEP) * STEP;
   const start = anchor - Math.floor(TICKS_VISIBLE / 2) * STEP;
@@ -351,7 +390,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
     document.body.removeChild(el);
   }, []);
 
-  const handleDeployTeam = () => {
+  const handleDeployTeam = useCallback(() => {
     const requiredDClass = 4;
     const available = dClassInventory.count;
     
@@ -411,7 +450,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
       console.log(`D-Class assigned: ${finalState.dClassInventory.assigned}`);
       setIsDeploying(false);
     }, 800);
-  };
+  }, [scp087, dClassInventory, toggleTeamExploration]);
 
   // Memoized flashlight button to prevent flickering
   const flashlightButton = useMemo(() => {

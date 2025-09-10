@@ -120,7 +120,14 @@ export const SCP087Panel = () => {
       <CardContent className="space-y-4">
         {/* Enhanced Terminal with Integrated Controls */}
         <ErrorBoundary>
-          <EnhancedStairwellTerminal />
+          <div className="lg:hidden">
+            {/* Mobile-optimized terminal for small screens */}
+            <EnhancedStairwellTerminal />
+          </div>
+          <div className="hidden lg:block">
+            {/* Full terminal for larger screens */}
+            <EnhancedStairwellTerminal />
+          </div>
         </ErrorBoundary>
 
         {/* One-time Upgrades */}

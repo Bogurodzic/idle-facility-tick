@@ -113,32 +113,59 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
   const [t, setT] = useState(0);
   const raf = useRef<number | null>(null);
 
-  // animation/update loop (no drift; ties to store values)
+  // Optimized animation loop with reduced CPU usage
   useEffect(() => {
-    let last = performance.now();
-    const loop = (now: number) => {
-      const dt = (now - last) / 1000;
-      last = now;
+    let lastTime = performance.now();
+    let frameCount = 0;
+    
+    const loop = (currentTime: number) => {
+      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1);
+      lastTime = currentTime;
+      frameCount++;
 
-      setT(p => p + dt);
+      // Throttle to 20 FPS for monitor component to save resources
+      if (deltaTime < 1/20) {
+        raf.current = requestAnimationFrame(loop);
+        return;
+      }
 
-      if (f.on) drainFlashlight(dt); 
-      else rechargeFlashlightV2(dt * 0.7);
-      movePersonnel(dt);
-      cullExpiredEncounters();
+      try {
+        setT(p => p + deltaTime);
 
-      // occasional encounter near current depth
-      if (Math.random() < 0.025 && f.on) {
-        const jitter = (Math.random() * 3 - 1.5) * STEP;
-        const targetDepth = Math.max(0, Math.round(depth / STEP) * STEP + jitter);
-        const kind: EncounterKind = Math.random() < 0.2 ? "087-1" : "anomaly";
-        spawnEncounterAtDepth(targetDepth, kind);
+        // Only update if document is visible and flashlight system is active
+        if (!document.hidden) {
+          if (f.on) drainFlashlight(deltaTime); 
+          else rechargeFlashlightV2(deltaTime * 0.7);
+          
+          movePersonnel(deltaTime);
+          
+          // Less frequent encounter spawning and cleanup for performance
+          if (frameCount % 30 === 0) { // Every ~1.5 seconds
+            cullExpiredEncounters();
+            
+            // Reduced encounter spawn rate
+            if (Math.random() < 0.015 && f.on) {
+              const jitter = (Math.random() * 3 - 1.5) * STEP;
+              const targetDepth = Math.max(0, Math.round(depth / STEP) * STEP + jitter);
+              const kind: EncounterKind = Math.random() < 0.2 ? "087-1" : "anomaly";
+              spawnEncounterAtDepth(targetDepth, kind);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[SCP087 Monitor] Animation loop error:', error);
       }
 
       raf.current = requestAnimationFrame(loop);
     };
+    
     raf.current = requestAnimationFrame(loop);
-    return () => { if (raf.current) cancelAnimationFrame(raf.current); };
+    return () => { 
+      if (raf.current) {
+        cancelAnimationFrame(raf.current);
+        raf.current = null;
+      }
+    };
   }, [f.on, drainFlashlight, rechargeFlashlightV2, movePersonnel, cullExpiredEncounters, spawnEncounterAtDepth, depth]);
 
   // viewport window centered on current depth

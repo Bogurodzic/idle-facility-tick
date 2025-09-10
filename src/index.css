@@ -148,4 +148,44 @@ All colors MUST be HSL.
       0 0 10px currentColor,
       0 0 15px currentColor;
   }
+
+  /* Mobile-first responsive design improvements */
+  @media (max-width: 768px) {
+    body {
+      font-size: 14px;
+    }
+    
+    .facility-panel {
+      margin: 0;
+      border-radius: 0;
+    }
+  }
+
+  /* Touch-friendly scrollbars */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-track-black\/20::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  
+  .scrollbar-thumb-terminal-green\/50::-webkit-scrollbar-thumb {
+    background: rgba(34, 197, 94, 0.5);
+    border-radius: 4px;
+  }
+
+  /* Performance optimizations */
+  .animate-pulse {
+    will-change: opacity;
+  }
+
+  .transition-transform {
+    will-change: transform;
+  }
+
+  /* Touch optimization */
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
 }
