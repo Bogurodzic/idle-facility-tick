@@ -1493,8 +1493,76 @@ export const useGameStore = create<GameState & GameActions>()(
               );
             }
 
+            // Enhanced SCP-087 encounter spawning and activity
+            if (newState.scp087.teamActive && newState.scp087.personnel) {
+              // Ensure activeEncounters is initialized
+              if (!newState.scp087.activeEncounters || !Array.isArray(newState.scp087.activeEncounters)) {
+                newState.scp087.activeEncounters = [];
+              }
+              
+              const currentDepth = newState.scp087.currentDepth || 0;
+              const { spawnEncounterAtDepth, addDClassEvent, cullExpiredEncounters, updateEncounterProgress, movePersonnel } = get();
+              
+              // Dynamic spawn rates based on depth and activity
+              let anomalySpawnChance = 0.05; // 5% base per tick
+              let scpSpawnChance = 0.01; // 1% base per tick for SCP-087-1
+              
+              // Increase spawn rates with depth
+              const depthMultiplier = 1 + (currentDepth / 600) * 0.8;
+              anomalySpawnChance *= depthMultiplier;
+              scpSpawnChance *= depthMultiplier;
+              
+              // Milestone events at specific depths (every 150m)
+              const nearMilestone = (currentDepth % 150) < 25;
+              if (nearMilestone) {
+                anomalySpawnChance *= 3;
+                scpSpawnChance *= 2.5;
+              }
+              
+              // Limit concurrent encounters
+              const maxEncounters = 4;
+              const currentEncounters = newState.scp087.activeEncounters.length;
+              
+              // Spawn encounters
+              if (currentEncounters < maxEncounters) {
+                if (Math.random() < anomalySpawnChance) {
+                  const spawnDepth = currentDepth + (Math.random() * 100) + 30;
+                  spawnEncounterAtDepth(spawnDepth, "anomaly");
+                  addDClassEvent(`Anomalous readings detected ${Math.round(spawnDepth - currentDepth)}m ahead at ${Math.round(spawnDepth)}m depth`, 'info', 'SCP-087');
+                }
+                
+                if (Math.random() < scpSpawnChance) {
+                  const spawnDepth = currentDepth + (Math.random() * 150) + 60;
+                  spawnEncounterAtDepth(spawnDepth, "087-1");
+                  addDClassEvent(`Motion detected on lower levels - potential SCP-087-1 manifestation at ${Math.round(spawnDepth)}m`, 'warning', 'SCP-087');
+                }
+              }
+              
+              // Process encounters and movement
+              cullExpiredEncounters();
+              updateEncounterProgress();
+              movePersonnel(1);
+              
+              // Exploration events during active missions (25% chance per tick)
+              if (Math.random() < 0.25) {
+                const explorationEvents = [
+                  `Team reports increasing paranormal activity at ${Math.round(currentDepth)}m`,
+                  `Temperature dropping rapidly - thermal readings unstable at ${Math.round(currentDepth)}m`,
+                  `Audio distortions detected on D-Class radio feeds at ${Math.round(currentDepth)}m`,
+                  `Structural anomalies reported - stairwell geometry inconsistent at ${Math.round(currentDepth)}m`,
+                  `D-Class psychological evaluations showing elevated stress at ${Math.round(currentDepth)}m`,
+                  `Equipment malfunctions increasing - multiple flashlight failures at ${Math.round(currentDepth)}m`,
+                  `Unexplained echoes and sounds reported from deeper sections near ${Math.round(currentDepth)}m`,
+                  `Time dilation effects suspected - chronometer synchronization lost at ${Math.round(currentDepth)}m`
+                ];
+                
+                const randomEvent = explorationEvents[Math.floor(Math.random() * explorationEvents.length)];
+                addDClassEvent(randomEvent, currentDepth > 600 ? 'warning' : 'info', 'SCP-087');
+              }
+            }
+
             // Generate procedural D-Class events occasionally
-            if (Math.random() < 0.02) { // 2% chance per tick for atmospheric events
+            if (Math.random() < 0.06) { // 6% chance per tick for more activity
               const { addDClassEvent } = get();
               const atmosphericEvents = [
                 "New D-Class personnel batch delivered from Site-17",
@@ -1505,7 +1573,11 @@ export const useGameStore = create<GameState & GameActions>()(
                 "D-Class meal provision systems functioning nominally",
                 "Automated D-Class interview protocols initiated",
                 "D-Class medical examinations scheduled for next rotation",
-                "Foundation Ethics Committee review of D-Class protocols pending"
+                "Foundation Ethics Committee review of D-Class protocols pending",
+                "Site-19 security alert - D-Class containment protocols reinforced",
+                "D-Class work assignment optimization protocols updated",
+                "Foundation personnel rotation affecting D-Class supervision schedules",
+                "Psychological conditioning session completed for new D-Class subjects"
               ];
               
               const randomMessage = atmosphericEvents[Math.floor(Math.random() * atmosphericEvents.length)];
