@@ -1087,8 +1087,9 @@ export const useGameStore = create<GameState & GameActions>()(
               }
               
               // Process casualties during investigation (higher chance for red encounters)
-              if (progress > 0.5 && Math.random() < (encounter.casualtyRate || 0) * 0.3) {
+              if (progress > 0.5 && Math.random() < (encounter.casualtyRate || 0) * 0.5) {
                 const casualties = Math.min(encounter.requiredDClass || 1, 1);
+                console.log(`[DEBUG] Encounter casualty during progress - casualties: ${casualties}, encounter: ${encounter.kind}`);
                 processDClassCasualties(casualties);
                 
                 addDClassEvent(`${casualties} D-Class casualties during ${encounter.kind === "087-1" ? "investigation" : "collection"} at ${Math.round(encounter.absoluteDepth)}m`, 'critical', 'SCP-087');
@@ -1098,6 +1099,7 @@ export const useGameStore = create<GameState & GameActions>()(
                 // Complete encounter with final casualty check
                 const finalCasualties = Math.random() < (encounter.casualtyRate || 0) ? 1 : 0;
                 if (finalCasualties > 0) {
+                  console.log(`[DEBUG] Final encounter casualty - casualties: ${finalCasualties}, encounter: ${encounter.kind}`);
                   processDClassCasualties(finalCasualties);
                   addDClassEvent(`Final casualty during encounter completion at ${Math.round(encounter.absoluteDepth)}m`, 'critical', 'SCP-087');
                 }
@@ -1195,10 +1197,23 @@ export const useGameStore = create<GameState & GameActions>()(
         },
 
         processDClassCasualties: (casualties: number) => {
+          const state = get();
           const { addDClassEvent } = get();
           
+          console.log(`[DEBUG] Processing ${casualties} D-Class casualties. Current assigned: ${state.dClassInventory.assigned}, count: ${state.dClassInventory.count}`);
+          
+          // Safety check - don't process if no casualties or no assigned D-Class
+          if (casualties <= 0 || state.dClassInventory.assigned <= 0) {
+            console.log(`[DEBUG] Skipping casualty processing - casualties: ${casualties}, assigned: ${state.dClassInventory.assigned}`);
+            return;
+          }
+          
+          // Limit casualties to available assigned D-Class
+          const actualCasualties = Math.min(casualties, state.dClassInventory.assigned);
+          console.log(`[DEBUG] Actual casualties to process: ${actualCasualties}`);
+          
           // Generate casualty events
-          for (let i = 0; i < casualties; i++) {
+          for (let i = 0; i < actualCasualties; i++) {
             const events = [
               "D-{id} reported 'massive face in darkness' before signal lost at {depth}m",
               "D-{id}'s flashlight failed at {depth}m. Subject abandoned mission, whereabouts unknown",
@@ -1223,14 +1238,17 @@ export const useGameStore = create<GameState & GameActions>()(
             addDClassEvent(message, 'critical', 'SCP-087');
           }
           
+          // Update D-Class inventory - reduce assigned count and track casualties
           set((state) => ({
             ...state,
             dClassInventory: {
               ...state.dClassInventory,
-              assigned: Math.max(0, state.dClassInventory.assigned - casualties),
-              totalCasualties: state.dClassInventory.totalCasualties + casualties
+              assigned: Math.max(0, state.dClassInventory.assigned - actualCasualties),
+              totalCasualties: state.dClassInventory.totalCasualties + actualCasualties
             }
           }));
+          
+          console.log(`[DEBUG] Casualties processed. New assigned: ${get().dClassInventory.assigned}, total casualties: ${get().dClassInventory.totalCasualties}`);
         },
 
         upgradeDClassFacility: (upgradeType: "capacity" | "generation" | "survival") => {
@@ -1389,26 +1407,35 @@ export const useGameStore = create<GameState & GameActions>()(
             if (newState.scp087.teamActive && newState.dClassInventory.assigned > 0) {
               const { processDClassCasualties, addDClassEvent } = get();
               
-              // Base casualty rate: 8% per tick (dramatically increased)
-              let casualtyRate = 0.08;
+              // Base casualty rate: 5% per tick (reduced from 8% for more balanced gameplay)
+              let casualtyRate = 0.05;
+              
+              // Apply mortality rate from upgrades
+              const mortalityMultiplier = newState.dClassInventory.mortalityRate;
+              casualtyRate *= mortalityMultiplier;
               
               // Depth-based escalation - deeper = exponentially more dangerous
               const avgDepth = newState.scp087.currentDepth || 0;
-              const depthMultiplier = 1 + (avgDepth / 200) * 0.3; // +30% per 200m
+              const depthMultiplier = 1 + (avgDepth / 500) * 0.5; // +50% per 500m (more gradual)
               casualtyRate *= depthMultiplier;
+              
+              console.log(`[DEBUG] Casualty calculation - Base: 5%, Mortality: ${mortalityMultiplier}, Depth: ${depthMultiplier}, Final: ${casualtyRate * 100}%`);
               
               // Death zones at milestone depths
               const isDeathZone = (avgDepth >= 500 && avgDepth < 520) || 
                                   (avgDepth >= 1000 && avgDepth < 1020) || 
                                   (avgDepth >= 1500 && avgDepth < 1520);
               if (isDeathZone) {
-                casualtyRate = 0.25; // 25% guaranteed casualties in death zones
+                casualtyRate = 0.15; // 15% guaranteed casualties in death zones (reduced from 25%)
+                console.log(`[DEBUG] Death zone detected at ${avgDepth}m - casualty rate increased to 15%`);
               }
               
-              // Multiple casualty events possible per tick
+              // Calculate casualties
               if (Math.random() < casualtyRate) {
-                const maxCasualties = Math.min(3, Math.ceil(newState.dClassInventory.assigned * 0.4));
+                const maxCasualties = Math.min(2, Math.ceil(newState.dClassInventory.assigned * 0.3)); // Max 2 casualties, up to 30% of assigned
                 const casualtyCount = Math.ceil(Math.random() * maxCasualties);
+                
+                console.log(`[DEBUG] Casualty event triggered! Count: ${casualtyCount}, Assigned: ${newState.dClassInventory.assigned}`);
                 
                 if (isDeathZone) {
                   addDClassEvent(`CRITICAL DEPTH REACHED - Mass casualty event at ${Math.round(avgDepth)}m`, 'critical', 'SCP-087');
@@ -1416,22 +1443,29 @@ export const useGameStore = create<GameState & GameActions>()(
                 
                 processDClassCasualties(casualtyCount);
                 
-                // Auto-replace D-Class if inventory allows
-                const state = get();
-                if (state.dClassInventory.count >= casualtyCount) {
+                // Auto-replace D-Class if inventory allows (with improved logic)
+                const currentState = get();
+                const availableForReplacement = currentState.dClassInventory.count;
+                const replacementNeeded = Math.min(casualtyCount, availableForReplacement);
+                
+                if (replacementNeeded > 0) {
                   set((prevState) => ({
                     ...prevState,
                     dClassInventory: {
                       ...prevState.dClassInventory,
-                      count: prevState.dClassInventory.count - casualtyCount,
-                      assigned: prevState.dClassInventory.assigned + casualtyCount
+                      count: prevState.dClassInventory.count - replacementNeeded,
+                      assigned: prevState.dClassInventory.assigned + replacementNeeded
                     }
                   }));
                   
-                  addDClassEvent(`${casualtyCount} replacement D-Class deployed to maintain exploration teams`, 'info', 'SCP-087');
-                } else if (newState.dClassInventory.assigned <= 1) {
-                  // Emergency recall when too few D-Class remain
+                  addDClassEvent(`${replacementNeeded} replacement D-Class deployed to maintain exploration teams`, 'info', 'SCP-087');
+                  console.log(`[DEBUG] Auto-replaced ${replacementNeeded} D-Class. New assigned: ${get().dClassInventory.assigned}`);
+                }
+                
+                // Emergency recall when too few D-Class remain
+                if (currentState.dClassInventory.assigned <= 2 && currentState.dClassInventory.count <= 1) {
                   addDClassEvent("EMERGENCY PROTOCOL - Team automatically recalled due to critical D-Class shortage", 'critical', 'SCP-087');
+                  console.log(`[DEBUG] Emergency recall triggered - assigned: ${currentState.dClassInventory.assigned}, count: ${currentState.dClassInventory.count}`);
                   get().toggleTeamExploration();
                 }
               }
