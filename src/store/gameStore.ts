@@ -36,6 +36,11 @@ export interface SCP087State {
   activeEncounters: Encounter[];
   teamActive: boolean;
   teamDeployed: boolean; // For UI consistency
+  
+  // Phase 1 Engagement Fixes tracking
+  lastActivitySurge?: number;
+  gameStartTime?: number;
+  
   // Legacy arrays for backward compatibility
   oldPersonnel?: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
   oldActiveEncounters?: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
@@ -999,7 +1004,7 @@ export const useGameStore = create<GameState & GameActions>()(
                   kind,
                   absoluteDepth,
                   rewardPE: kind === "087-1" ? 200 + Math.floor(absoluteDepth / 100) * 50 : 40 + Math.floor(absoluteDepth / 200) * 20,
-                  expiresAt: Date.now() + (kind === "087-1" ? 15000 : 12000),
+                  expiresAt: Date.now() + (kind === "087-1" ? 8000 : 6000), // Phase 1: Reduced 15s→8s, 12s→6s
                   blocking: true, // all encounters block progression
                   inProgress: false,
                   duration: kind === "087-1" ? 45000 + Math.floor(absoluteDepth / 100) * 15000 : 20000 + Math.floor(absoluteDepth / 200) * 10000,
@@ -1466,6 +1471,14 @@ export const useGameStore = create<GameState & GameActions>()(
           set((prevState) => {
             const newState = { ...prevState };
             
+            // Initialize activity surge tracking if not present
+            if (!newState.scp087.lastActivitySurge) {
+              newState.scp087.lastActivitySurge = Date.now();
+            }
+            if (!newState.scp087.gameStartTime) {
+              newState.scp087.gameStartTime = Date.now();
+            }
+            
             // Calculate research personnel bonuses (with safety checks)
             const personnel = newState.scp087.personnel || [];
             const researchers = personnel.filter(p => p.role === "Research");
@@ -1503,9 +1516,26 @@ export const useGameStore = create<GameState & GameActions>()(
               const currentDepth = newState.scp087.currentDepth || 0;
               const { spawnEncounterAtDepth, addDClassEvent, cullExpiredEncounters, updateEncounterProgress, movePersonnel } = get();
               
-              // Dynamic spawn rates based on depth and activity
-              let anomalySpawnChance = 0.05; // 5% base per tick
-              let scpSpawnChance = 0.01; // 1% base per tick for SCP-087-1
+              // Phase 1 Engagement Fixes: Boosted spawn rates
+              let anomalySpawnChance = 0.15; // 5% → 15% base per tick
+              let scpSpawnChance = 0.04; // 1% → 4% base per tick for SCP-087-1
+              
+              // Welcome Surge: 3x rates for first 2 minutes
+              const gameTime = Date.now() - (newState.scp087.gameStartTime || Date.now());
+              const isWelcomeSurge = gameTime < 120000; // 2 minutes
+              
+              // Activity Surge: 2.5x rates every 45-60 seconds
+              const timeSinceLastSurge = Date.now() - (newState.scp087.lastActivitySurge || Date.now());
+              const isActivitySurge = timeSinceLastSurge > (45000 + Math.random() * 15000); // 45-60s
+              
+              if (isWelcomeSurge) {
+                anomalySpawnChance *= 3;
+                scpSpawnChance *= 3;
+              } else if (isActivitySurge) {
+                anomalySpawnChance *= 2.5;
+                scpSpawnChance *= 2.5;
+                newState.scp087.lastActivitySurge = Date.now();
+              }
               
               // Increase spawn rates with depth
               const depthMultiplier = 1 + (currentDepth / 600) * 0.8;
