@@ -41,6 +41,14 @@ export interface SCP087State {
   lastActivitySurge?: number;
   gameStartTime?: number;
   
+  // Phase 2 Flow State tracking
+  momentumLevel?: number; // 0-100, provides speed bonuses
+  lastInteractionTime?: number;
+  momentumDecayRate?: number;
+  lastChainTime?: number;
+  chainMultiplier?: number;
+  activeChains?: number;
+  
   // Legacy arrays for backward compatibility
   oldPersonnel?: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
   oldActiveEncounters?: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
@@ -351,7 +359,13 @@ const defaultState: GameState = {
     ],
     teamActive: false,
     teamDeployed: false,
-    activeEncounters: []
+    activeEncounters: [],
+    
+    // Phase 2: Flow State tracking defaults
+    momentumLevel: 0,
+    momentumDecayRate: 1,
+    activeChains: 0,
+    chainMultiplier: 1
   },
   scp173: {
     observationPoints: 0,
@@ -416,11 +430,12 @@ type GameActions = {
   manualChargeFlashlight: () => void;
   movePersonnel: (dt: number) => void;
   spawnEncounterAtDepth: (absoluteDepth: number, kind: EncounterKind) => void;
-  resolveEncounter: (id: string) => void;
+  resolveEncounter: (id: string, bonusMultiplier?: number) => void;
   cullExpiredEncounters: () => void;
   startEncounterInteraction: (encounterId: string) => boolean;
   updateEncounterProgress: () => void;
   abortEncounter: (encounterId: string) => void;
+  spawnChainEncounter: (nearDepth: number) => void;
   
   // D-Class Management Actions
   recruitDClass: (quantity: number) => void;
@@ -926,7 +941,9 @@ export const useGameStore = create<GameState & GameActions>()(
             // Safety check - ensure personnel and flashlight exist
             if (!state.scp087.teamActive || !state.scp087.personnel || !state.scp087.flashlight) return state;
             
-            const baseSpeed = 5 * (state.scp087.flashlight.on ? 1 : 0.6);
+            // Phase 2: Apply momentum-based speed bonuses
+            const momentumBonus = 1 + ((state.scp087.momentumLevel || 0) / 100) * 0.5; // Up to 50% speed bonus at max momentum
+            const baseSpeed = 5 * (state.scp087.flashlight.on ? 1 : 0.6) * momentumBonus;
             const { addDClassEvent } = get();
             
             const newPersonnel = state.scp087.personnel.map(p => {
@@ -1007,7 +1024,8 @@ export const useGameStore = create<GameState & GameActions>()(
                   expiresAt: Date.now() + (kind === "087-1" ? 8000 : 6000), // Phase 1: Reduced 15s→8s, 12s→6s
                   blocking: true, // all encounters block progression
                   inProgress: false,
-                  duration: kind === "087-1" ? 45000 + Math.floor(absoluteDepth / 100) * 15000 : 20000 + Math.floor(absoluteDepth / 200) * 10000,
+                  duration: kind === "087-1" ? 12000 + Math.floor(absoluteDepth / 100) * 6000 : 6000 + Math.floor(absoluteDepth / 200) * 3000, // Phase 2: Reduced 45s→12s, 20s→6s base
+                  quickResolution: Math.random() < 0.25, // Phase 2: 25% chance for instant completion
                   casualtyRate: kind === "087-1" ? 0.6 + (absoluteDepth / 1000) * 0.25 : 0.15 + (absoluteDepth / 1000) * 0.1,
                   requiredDClass: kind === "087-1" ? Math.max(2, Math.floor(absoluteDepth / 300) + 2) : Math.max(1, Math.floor(absoluteDepth / 500) + 1)
                 }
@@ -1016,7 +1034,7 @@ export const useGameStore = create<GameState & GameActions>()(
           }));
         },
 
-        resolveEncounter: (id: string) => {
+        resolveEncounter: (id: string, bonusMultiplier?: number) => {
           set((state) => {
             const encounterIndex = state.scp087.activeEncounters.findIndex(e => e.id === id);
             if (encounterIndex < 0) return state;
@@ -1028,10 +1046,11 @@ export const useGameStore = create<GameState & GameActions>()(
             const scouts = personnel.filter(p => p.role === "Scout");
             const scoutPEBonus = scouts.reduce((total, scout) => total + (scout.level * 0.1), 0); // +10% PE per scout level
 
-            // Add PE reward with scout bonus
+            // Add PE reward with scout bonus and quick resolution bonus
             const basePE = encounter.rewardPE;
             const bonusPE = basePE * scoutPEBonus;
-            const totalPE = Math.round(basePE + bonusPE);
+            const quickBonus = bonusMultiplier ? basePE * 0.5 : 0; // 50% bonus for quick resolution
+            const totalPE = Math.round(basePE + bonusPE + quickBonus);
             
             // Generate event based on encounter type
             const { addDClassEvent } = get();
@@ -1095,12 +1114,34 @@ export const useGameStore = create<GameState & GameActions>()(
           const encounter = state.scp087.activeEncounters.find(e => e.id === encounterId);
           if (!encounter || encounter.inProgress) return false;
 
-          const { addDClassEvent } = get();
+          const { addDClassEvent, resolveEncounter, spawnChainEncounter } = get();
           const requiredDClass = encounter.requiredDClass || 1;
           
           if (state.dClassInventory.count < requiredDClass) {
             addDClassEvent(`Insufficient D-Class for ${encounter.kind === "087-1" ? "investigation" : "collection"} - need ${requiredDClass}`, 'warning', 'SCP-087');
             return false;
+          }
+
+          // Phase 2: Quick Resolution mechanic
+          if (encounter.quickResolution) {
+            set((state) => ({
+              ...state,
+              dClassInventory: {
+                ...state.dClassInventory,
+                count: state.dClassInventory.count - requiredDClass
+              },
+              scp087: {
+                ...state.scp087,
+                lastInteractionTime: Date.now(),
+                momentumLevel: Math.min(100, (state.scp087.momentumLevel || 0) + 15), // +15 momentum for quick resolution
+                activeChains: (state.scp087.activeChains || 0) + 1
+              }
+            }));
+            
+            addDClassEvent(`Quick ${encounter.kind === "087-1" ? "investigation" : "collection"} complete! Bonus PE awarded.`, 'info', 'SCP-087');
+            resolveEncounter(encounterId, 1.5); // 1.5x bonus multiplier
+            spawnChainEncounter(encounter.absoluteDepth + (Math.random() * 100 - 50)); // Spawn nearby
+            return true;
           }
 
           set((state) => ({
@@ -1114,12 +1155,47 @@ export const useGameStore = create<GameState & GameActions>()(
               ...state.scp087,
               activeEncounters: state.scp087.activeEncounters.map(e => 
                 e.id === encounterId ? { ...e, inProgress: true, progressStarted: Date.now() } : e
-              )
+              ),
+              lastInteractionTime: Date.now()
             }
           }));
 
           addDClassEvent(`${requiredDClass} D-Class deployed for ${encounter.kind === "087-1" ? "investigation" : "collection"} at ${Math.round(encounter.absoluteDepth)}m`, encounter.kind === "087-1" ? 'critical' : 'info', 'SCP-087');
           return true;
+        },
+
+        // Phase 2: Chain encounter spawning
+        spawnChainEncounter: (nearDepth: number) => {
+          const state = get();
+          if ((state.scp087.activeEncounters?.length || 0) >= 5) return; // Limit active encounters
+          
+          const chainMultiplier = (state.scp087.chainMultiplier || 1) + 0.2;
+          const kind: EncounterKind = Math.random() < 0.3 ? "087-1" : "anomaly";
+          
+          set((prevState) => ({
+            scp087: {
+              ...prevState.scp087,
+              chainMultiplier,
+              activeEncounters: [
+                ...prevState.scp087.activeEncounters,
+                {
+                  id: crypto.randomUUID(),
+                  x: 0, y: 0,
+                  kind,
+                  absoluteDepth: nearDepth,
+                  rewardPE: Math.round((kind === "087-1" ? 200 + Math.floor(nearDepth / 100) * 50 : 40 + Math.floor(nearDepth / 200) * 20) * chainMultiplier),
+                  expiresAt: Date.now() + (kind === "087-1" ? 8000 : 6000),
+                  blocking: true,
+                  inProgress: false,
+                  duration: kind === "087-1" ? 10000 + Math.floor(nearDepth / 100) * 4000 : 5000 + Math.floor(nearDepth / 200) * 2000, // Faster chain encounters
+                  casualtyRate: (kind === "087-1" ? 0.6 + (nearDepth / 1000) * 0.25 : 0.15 + (nearDepth / 1000) * 0.1) * 0.8, // Lower casualty for chains
+                  requiredDClass: Math.max(1, Math.floor((kind === "087-1" ? Math.max(2, Math.floor(nearDepth / 300) + 2) : Math.max(1, Math.floor(nearDepth / 500) + 1)) * 0.8)),
+                  quickResolution: Math.random() < 0.35, // Higher chance for chains
+                  isChainEncounter: true
+                }
+              ]
+            }
+          }));
         },
 
         updateEncounterProgress: () => {
@@ -1162,6 +1238,9 @@ export const useGameStore = create<GameState & GameActions>()(
               }
               
               if (elapsed >= encounter.duration) {
+                // Phase 2: Check if completed quickly for momentum and chain bonuses
+                const completedQuickly = elapsed <= encounter.duration * 0.75;
+                
                 // Complete encounter with final casualty check
                 const finalCasualties = Math.random() < (encounter.casualtyRate || 0) ? 1 : 0;
                 if (finalCasualties > 0) {
@@ -1171,16 +1250,28 @@ export const useGameStore = create<GameState & GameActions>()(
                 }
                 
                 const finalReward = Math.floor(encounter.rewardPE * (1 + encounter.absoluteDepth / 1000));
+                const { spawnChainEncounter } = get();
                 
                 set((prevState) => ({
                   ...prevState,
                   scp087: {
                     ...prevState.scp087,
-                    paranoiaEnergy: prevState.scp087.paranoiaEnergy + finalReward
+                    paranoiaEnergy: prevState.scp087.paranoiaEnergy + finalReward,
+                    lastInteractionTime: Date.now(),
+                    momentumLevel: completedQuickly 
+                      ? Math.min(100, (prevState.scp087.momentumLevel || 0) + 10) 
+                      : Math.max(0, (prevState.scp087.momentumLevel || 0) - 5),
+                    activeChains: completedQuickly ? (prevState.scp087.activeChains || 0) + 1 : prevState.scp087.activeChains
                   }
                 }));
 
-                addDClassEvent(`${encounter.kind === "087-1" ? "Investigation" : "Collection"} completed at ${Math.round(encounter.absoluteDepth)}m - ${finalReward}PE gained`, encounter.kind === "087-1" ? 'warning' : 'info', 'SCP-087');
+                // Phase 2: Chain encounter spawning for quick completions
+                if (completedQuickly && Math.random() < 0.4) {
+                  spawnChainEncounter(encounter.absoluteDepth + (Math.random() * 200 - 100));
+                  addDClassEvent(`Chain encounter triggered! Quick completion spawned additional activity.`, 'info', 'SCP-087');
+                }
+
+                addDClassEvent(`${encounter.kind === "087-1" ? "Investigation" : "Collection"} completed at ${Math.round(encounter.absoluteDepth)}m - ${finalReward}PE gained${completedQuickly ? ' (Quick!)' : ''}`, encounter.kind === "087-1" ? 'warning' : 'info', 'SCP-087');
                 return null; // Remove completed encounter
               }
               return encounter;
@@ -1477,6 +1568,26 @@ export const useGameStore = create<GameState & GameActions>()(
             }
             if (!newState.scp087.gameStartTime) {
               newState.scp087.gameStartTime = Date.now();
+            }
+            
+            // Phase 2: Initialize momentum system
+            if (newState.scp087.momentumLevel === undefined) {
+              newState.scp087.momentumLevel = 0;
+              newState.scp087.momentumDecayRate = 1; // 1 point per tick without activity
+              newState.scp087.activeChains = 0;
+            }
+            
+            // Phase 2: Momentum decay system
+            const now = Date.now();
+            const timeSinceLastInteraction = now - (newState.scp087.lastInteractionTime || now);
+            if (timeSinceLastInteraction > 5000) { // 5 seconds of inactivity starts decay
+              newState.scp087.momentumLevel = Math.max(0, (newState.scp087.momentumLevel || 0) - (newState.scp087.momentumDecayRate || 1));
+            }
+            
+            // Reset chain counter periodically
+            if (timeSinceLastInteraction > 30000) { // 30 seconds resets chains
+              newState.scp087.activeChains = 0;
+              newState.scp087.chainMultiplier = 1;
             }
             
             // Calculate research personnel bonuses (with safety checks)

@@ -14,6 +14,9 @@ export interface Encounter {
   duration?: number;    // how long collection/investigation takes (ms)
   casualtyRate?: number; // chance of D-Class casualties during this encounter
   requiredDClass?: number; // minimum D-Class needed for this encounter
+  quickResolution?: boolean; // Phase 2: 25% chance for instant completion
+  isChainEncounter?: boolean; // Phase 2: spawned from chain system
+  completedQuickly?: boolean; // Phase 2: completed within 75% of duration
 }
 
 export interface Personnel {
