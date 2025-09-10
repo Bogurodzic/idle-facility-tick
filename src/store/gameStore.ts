@@ -49,6 +49,11 @@ export interface SCP087State {
   chainMultiplier?: number;
   activeChains?: number;
   
+  // Phase 3 Risk/Reward Balancing
+  survivalStreak?: number; // consecutive successful encounters without casualties
+  lastCasualtyTime?: number; // timestamp of last casualty for streak tracking
+  closeCallCount?: number; // count of tension events without casualties
+  
   // Legacy arrays for backward compatibility
   oldPersonnel?: Array<{ id: string; position: number; direction: 'down' | 'up' }>;
   oldActiveEncounters?: Array<{ id: string; position: number; type: 'hostile' | 'neutral'; symbol: string }>;
@@ -365,7 +370,11 @@ const defaultState: GameState = {
     momentumLevel: 0,
     momentumDecayRate: 1,
     activeChains: 0,
-    chainMultiplier: 1
+    chainMultiplier: 1,
+    
+    // Phase 3: Risk/Reward Balancing defaults
+    survivalStreak: 0,
+    closeCallCount: 0
   },
   scp173: {
     observationPoints: 0,
@@ -1020,13 +1029,18 @@ export const useGameStore = create<GameState & GameActions>()(
                   x: 0, y: 0, // runtime overlay mapping fills these
                   kind,
                   absoluteDepth,
-                  rewardPE: kind === "087-1" ? 200 + Math.floor(absoluteDepth / 100) * 50 : 40 + Math.floor(absoluteDepth / 200) * 20,
+                  rewardPE: kind === "087-1" 
+                    ? Math.floor((200 + Math.floor(absoluteDepth / 100) * 50) * (1 + absoluteDepth / 100 * 0.1)) // Phase 3: +10% per 100m depth
+                    : Math.floor((40 + Math.floor(absoluteDepth / 200) * 20) * (1 + absoluteDepth / 100 * 0.1)), // Phase 3: +10% per 100m depth
                   expiresAt: Date.now() + (kind === "087-1" ? 8000 : 6000), // Phase 1: Reduced 15s→8s, 12s→6s
                   blocking: true, // all encounters block progression
                   inProgress: false,
                   duration: kind === "087-1" ? 12000 + Math.floor(absoluteDepth / 100) * 6000 : 6000 + Math.floor(absoluteDepth / 200) * 3000, // Phase 2: Reduced 45s→12s, 20s→6s base
                   quickResolution: Math.random() < 0.25, // Phase 2: 25% chance for instant completion
                   casualtyRate: kind === "087-1" ? 0.6 + (absoluteDepth / 1000) * 0.25 : 0.15 + (absoluteDepth / 1000) * 0.1,
+                  riskLevel: kind === "087-1" 
+                    ? (0.6 + (absoluteDepth / 1000) * 0.25) > 0.25 ? "high" : "medium"
+                    : (0.15 + (absoluteDepth / 1000) * 0.1) > 0.25 ? "high" : (0.15 + (absoluteDepth / 1000) * 0.1) > 0.10 ? "medium" : "low", // Phase 3: risk categorization
                   requiredDClass: kind === "087-1" ? Math.max(2, Math.floor(absoluteDepth / 300) + 2) : Math.max(1, Math.floor(absoluteDepth / 500) + 1)
                 }
               ]
@@ -1046,11 +1060,13 @@ export const useGameStore = create<GameState & GameActions>()(
             const scouts = personnel.filter(p => p.role === "Scout");
             const scoutPEBonus = scouts.reduce((total, scout) => total + (scout.level * 0.1), 0); // +10% PE per scout level
 
-            // Add PE reward with scout bonus and quick resolution bonus
+            // Add PE reward with scout bonus, quick resolution bonus, and survival streak bonus
             const basePE = encounter.rewardPE;
             const bonusPE = basePE * scoutPEBonus;
             const quickBonus = bonusMultiplier ? basePE * 0.5 : 0; // 50% bonus for quick resolution
-            const totalPE = Math.round(basePE + bonusPE + quickBonus);
+            const survivalStreak = state.scp087.survivalStreak || 0;
+            const streakBonus = Math.floor(survivalStreak / 5) * 0.05 * basePE; // +5% PE per 5 successful encounters (max +50%)
+            const totalPE = Math.round(basePE + bonusPE + quickBonus + streakBonus);
             
             // Generate event based on encounter type
             const { addDClassEvent } = get();
@@ -1074,7 +1090,8 @@ export const useGameStore = create<GameState & GameActions>()(
                 depth: encounter.kind === "087-1"
                   ? Math.max(0, state.scp087.depth - 13)
                   : state.scp087.depth,
-                activeEncounters: newEncounters
+                activeEncounters: newEncounters,
+                survivalStreak: (state.scp087.survivalStreak || 0) + 1 // Phase 3: increment survival streak
               }
             };
           });
@@ -1183,12 +1200,17 @@ export const useGameStore = create<GameState & GameActions>()(
                   x: 0, y: 0,
                   kind,
                   absoluteDepth: nearDepth,
-                  rewardPE: Math.round((kind === "087-1" ? 200 + Math.floor(nearDepth / 100) * 50 : 40 + Math.floor(nearDepth / 200) * 20) * chainMultiplier),
+                  rewardPE: Math.round((kind === "087-1" 
+                    ? Math.floor((200 + Math.floor(nearDepth / 100) * 50) * (1 + nearDepth / 100 * 0.1)) // Phase 3: +10% per 100m depth
+                    : Math.floor((40 + Math.floor(nearDepth / 200) * 20) * (1 + nearDepth / 100 * 0.1))) * chainMultiplier), // Phase 3: +10% per 100m depth
                   expiresAt: Date.now() + (kind === "087-1" ? 8000 : 6000),
                   blocking: true,
                   inProgress: false,
                   duration: kind === "087-1" ? 10000 + Math.floor(nearDepth / 100) * 4000 : 5000 + Math.floor(nearDepth / 200) * 2000, // Faster chain encounters
                   casualtyRate: (kind === "087-1" ? 0.6 + (nearDepth / 1000) * 0.25 : 0.15 + (nearDepth / 1000) * 0.1) * 0.8, // Lower casualty for chains
+                  riskLevel: kind === "087-1" 
+                    ? ((0.6 + (nearDepth / 1000) * 0.25) * 0.8) > 0.25 ? "high" : "medium"
+                    : ((0.15 + (nearDepth / 1000) * 0.1) * 0.8) > 0.25 ? "high" : ((0.15 + (nearDepth / 1000) * 0.1) * 0.8) > 0.10 ? "medium" : "low", // Phase 3: risk categorization
                   requiredDClass: Math.max(1, Math.floor((kind === "087-1" ? Math.max(2, Math.floor(nearDepth / 300) + 2) : Math.max(1, Math.floor(nearDepth / 500) + 1)) * 0.8)),
                   quickResolution: Math.random() < 0.35, // Higher chance for chains
                   isChainEncounter: true
@@ -1228,25 +1250,85 @@ export const useGameStore = create<GameState & GameActions>()(
                 addDClassEvent(randomEvent, 'critical', 'SCP-087');
               }
               
-              // Process casualties during investigation (higher chance for red encounters)
+              // Phase 3: Process casualties or close calls during investigation
               if (progress > 0.5 && Math.random() < (encounter.casualtyRate || 0) * 0.5) {
-                const casualties = Math.min(encounter.requiredDClass || 1, 1);
-                console.log(`[DEBUG] Encounter casualty during progress - casualties: ${casualties}, encounter: ${encounter.kind}`);
-                processDClassCasualties(casualties);
-                
-                addDClassEvent(`${casualties} D-Class casualties during ${encounter.kind === "087-1" ? "investigation" : "collection"} at ${Math.round(encounter.absoluteDepth)}m`, 'critical', 'SCP-087');
+                // 15% chance for close call instead of casualties (Phase 3: tension without punishment)
+                if (Math.random() < 0.15) {
+                  const closeCallEvents = [
+                    `D-Class team narrowly avoids equipment failure at ${Math.round(encounter.absoluteDepth)}m - emergency protocols engaged`,
+                    `Close call: Structural collapse detected seconds after team evacuation at ${Math.round(encounter.absoluteDepth)}m`,
+                    `Near miss: SCP-087-1 manifestation disperses just as team reaches safe distance at ${Math.round(encounter.absoluteDepth)}m`,
+                    `Critical: Emergency ascent successful - D-Class team escaped hostile entity at ${Math.round(encounter.absoluteDepth)}m`
+                  ];
+                  const randomCloseCall = closeCallEvents[Math.floor(Math.random() * closeCallEvents.length)];
+                  addDClassEvent(randomCloseCall, 'warning', 'SCP-087');
+                  
+                  set((prevState) => ({
+                    ...prevState,
+                    scp087: {
+                      ...prevState.scp087,
+                      closeCallCount: (prevState.scp087.closeCallCount || 0) + 1
+                    }
+                  }));
+                } else {
+                  const casualties = Math.min(encounter.requiredDClass || 1, 1);
+                  console.log(`[DEBUG] Encounter casualty during progress - casualties: ${casualties}, encounter: ${encounter.kind}`);
+                  processDClassCasualties(casualties);
+                  
+                  // Reset survival streak on casualty (Phase 3)
+                  set((prevState) => ({
+                    ...prevState,
+                    scp087: {
+                      ...prevState.scp087,
+                      survivalStreak: 0,
+                      lastCasualtyTime: Date.now()
+                    }
+                  }));
+                  
+                  addDClassEvent(`${casualties} D-Class casualties during ${encounter.kind === "087-1" ? "investigation" : "collection"} at ${Math.round(encounter.absoluteDepth)}m`, 'critical', 'SCP-087');
+                }
               }
               
               if (elapsed >= encounter.duration) {
                 // Phase 2: Check if completed quickly for momentum and chain bonuses
                 const completedQuickly = elapsed <= encounter.duration * 0.75;
                 
-                // Complete encounter with final casualty check
-                const finalCasualties = Math.random() < (encounter.casualtyRate || 0) ? 1 : 0;
+                // Phase 3: Complete encounter with final casualty check or close call
+                const casualtyRoll = Math.random();
+                const finalCasualties = casualtyRoll < (encounter.casualtyRate || 0) ? 1 : 0;
+                
                 if (finalCasualties > 0) {
                   console.log(`[DEBUG] Final encounter casualty - casualties: ${finalCasualties}, encounter: ${encounter.kind}`);
                   processDClassCasualties(finalCasualties);
+                  
+                  // Reset survival streak on casualty (Phase 3)
+                  set((prevState) => ({
+                    ...prevState,
+                    scp087: {
+                      ...prevState.scp087,
+                      survivalStreak: 0,
+                      lastCasualtyTime: Date.now()
+                    }
+                  }));
+                  
                   addDClassEvent(`Final casualty during encounter completion at ${Math.round(encounter.absoluteDepth)}m`, 'critical', 'SCP-087');
+                } else if (casualtyRoll < (encounter.casualtyRate || 0) + 0.15) {
+                  // Close call instead of casualty (Phase 3)
+                  const closeCallEvents = [
+                    `Lucky escape: D-Class team evacuated seconds before catastrophic failure at ${Math.round(encounter.absoluteDepth)}m`,
+                    `Close call: Equipment malfunction contained - team narrowly avoided exposure at ${Math.round(encounter.absoluteDepth)}m`,
+                    `Near miss: Hostile entity departed just as team completed objective at ${Math.round(encounter.absoluteDepth)}m`
+                  ];
+                  const randomCloseCall = closeCallEvents[Math.floor(Math.random() * closeCallEvents.length)];
+                  addDClassEvent(randomCloseCall, 'warning', 'SCP-087');
+                  
+                  set((prevState) => ({
+                    ...prevState,
+                    scp087: {
+                      ...prevState.scp087,
+                      closeCallCount: (prevState.scp087.closeCallCount || 0) + 1
+                    }
+                  }));
                 }
                 
                 const finalReward = Math.floor(encounter.rewardPE * (1 + encounter.absoluteDepth / 1000));
@@ -1748,8 +1830,8 @@ export const useGameStore = create<GameState & GameActions>()(
                                   (avgDepth >= 1000 && avgDepth < 1020) || 
                                   (avgDepth >= 1500 && avgDepth < 1520);
               if (isDeathZone) {
-                casualtyRate = 0.15; // 15% guaranteed casualties in death zones (reduced from 25%)
-                console.log(`[DEBUG] Death zone detected at ${avgDepth}m - casualty rate increased to 15%`);
+                casualtyRate = 0.08; // Phase 3: 8% guaranteed casualties in death zones (reduced from 15%)
+                console.log(`[DEBUG] Death zone detected at ${avgDepth}m - casualty rate increased to 8%`);
               }
               
               // Calculate casualties
@@ -1760,8 +1842,18 @@ export const useGameStore = create<GameState & GameActions>()(
                 console.log(`[DEBUG] Casualty event triggered! Count: ${casualtyCount}, Assigned: ${newState.dClassInventory.assigned}`);
                 
                 if (isDeathZone) {
-                  addDClassEvent(`CRITICAL DEPTH REACHED - Mass casualty event at ${Math.round(avgDepth)}m`, 'critical', 'SCP-087');
+                  addDClassEvent(`CRITICAL DEPTH REACHED - High risk zone casualties at ${Math.round(avgDepth)}m`, 'critical', 'SCP-087');
                 }
+                
+                // Reset survival streak on casualties (Phase 3)
+                set((prevState) => ({
+                  ...prevState,
+                  scp087: {
+                    ...prevState.scp087,
+                    survivalStreak: 0,
+                    lastCasualtyTime: Date.now()
+                  }
+                }));
                 
                 processDClassCasualties(casualtyCount);
                 

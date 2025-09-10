@@ -17,6 +17,8 @@ export interface Encounter {
   quickResolution?: boolean; // Phase 2: 25% chance for instant completion
   isChainEncounter?: boolean; // Phase 2: spawned from chain system
   completedQuickly?: boolean; // Phase 2: completed within 75% of duration
+  riskLevel?: "low" | "medium" | "high"; // Phase 3: visual risk categorization
+  isCloseCall?: boolean; // Phase 3: tension event without casualties
 }
 
 export interface Personnel {
