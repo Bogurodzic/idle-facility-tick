@@ -9,6 +9,7 @@ import { EnhancedStairwellVisualization } from "./SCP087/EnhancedStairwellVisual
 import { SimpleUpgradeCard } from "./SCP087/SimpleUpgradeCard";
 import { OneTimeUpgradeIcon } from "./SCP087/OneTimeUpgradeIcon";
 import EnhancedStairwellTerminal from "./SCP087/EnhancedStairwellTerminal";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 export const SCP087Panel = () => {
   const { 
@@ -118,7 +119,9 @@ export const SCP087Panel = () => {
       
       <CardContent className="space-y-4">
         {/* Enhanced Terminal with Integrated Controls */}
-        <EnhancedStairwellTerminal />
+        <ErrorBoundary>
+          <EnhancedStairwellTerminal />
+        </ErrorBoundary>
 
         {/* One-time Upgrades */}
         {getOneTimeUpgrades().length > 0 && (

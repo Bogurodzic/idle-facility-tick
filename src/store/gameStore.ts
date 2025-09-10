@@ -1061,6 +1061,12 @@ export const useGameStore = create<GameState & GameActions>()(
             const now = Date.now();
             const { processDClassCasualties, addDClassEvent } = get();
             
+            // Safety check: ensure activeEncounters exists and is an array
+            if (!state.scp087?.activeEncounters || !Array.isArray(state.scp087.activeEncounters)) {
+              console.warn('activeEncounters is undefined or not an array, skipping update');
+              return state;
+            }
+            
             const updatedEncounters = state.scp087.activeEncounters.map(encounter => {
               if (!encounter.inProgress || !encounter.progressStarted || !encounter.duration) return encounter;
 

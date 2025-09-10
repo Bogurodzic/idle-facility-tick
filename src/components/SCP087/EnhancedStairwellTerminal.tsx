@@ -99,7 +99,7 @@ export default function EnhancedStairwellTerminal({ width = 28 }: Props) {
     },
   ];
   
-  const activeEncounters: Encounter[] = scp087?.activeEncounters?.map((e: any) => {
+  const activeEncounters: Encounter[] = (scp087?.activeEncounters || []).map((e: any) => {
     if ('kind' in e) {
       return e as Encounter;
     } else {

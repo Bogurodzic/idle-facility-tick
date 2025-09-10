@@ -85,7 +85,7 @@ export default function StairwellMonitorV21({ width = 24 }: Props) {
   ];
   
   // Convert old encounters format to new format if needed
-  const activeEncounters: Encounter[] = scp087?.activeEncounters?.map((e: any) => {
+  const activeEncounters: Encounter[] = (scp087?.activeEncounters || []).map((e: any) => {
     // Handle both old and new formats
     if ('kind' in e) {
       // Already new format
