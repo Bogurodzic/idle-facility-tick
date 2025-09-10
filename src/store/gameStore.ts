@@ -423,6 +423,7 @@ type GameActions = {
   processDClassCasualties: (casualties: number) => void;
   upgradeDClassFacility: (upgradeType: "capacity" | "generation" | "survival") => void;
   addDClassEvent: (message: string, severity?: 'info' | 'warning' | 'critical', scpId?: string) => void;
+  validateTeamStates: () => void;
   
   // SCP-173 Actions
   blink: () => void;
@@ -476,15 +477,70 @@ export const useGameStore = create<GameState & GameActions>()(
             console.error("Personnel not initialized, cannot toggle team");
             return;
           }
+
+          // State validation and correction logic
+          const validateAndFixStates = () => {
+            const currentState = get();
+            let needsCorrection = false;
+            let correctedState = { ...currentState };
+
+            // Rule 1: If assigned D-Class = 0, team should not be active/deployed
+            if (currentState.dClassInventory.assigned === 0 && (currentState.scp087.teamActive || currentState.scp087.teamDeployed)) {
+              console.log("[STATE-FIX] No assigned D-Class but team marked as active - correcting");
+              correctedState.scp087.teamActive = false;
+              correctedState.scp087.teamDeployed = false;
+              needsCorrection = true;
+            }
+
+            // Rule 2: teamActive and teamDeployed should always match
+            if (currentState.scp087.teamActive !== currentState.scp087.teamDeployed) {
+              console.log(`[STATE-FIX] teamActive (${currentState.scp087.teamActive}) != teamDeployed (${currentState.scp087.teamDeployed}) - syncing`);
+              correctedState.scp087.teamDeployed = currentState.scp087.teamActive;
+              needsCorrection = true;
+            }
+
+            // Rule 3: If team is active but no personnel are marked active, fix personnel
+            if (currentState.scp087.teamActive && !currentState.scp087.personnel.some(p => p.active)) {
+              console.log("[STATE-FIX] Team active but no personnel marked active - correcting personnel");
+              correctedState.scp087.personnel = currentState.scp087.personnel.map(p => ({
+                ...p,
+                active: true,
+                assignedDClass: Math.ceil(currentState.dClassInventory.assigned / currentState.scp087.personnel.length)
+              }));
+              needsCorrection = true;
+            }
+
+            // Rule 4: If team not active but personnel are marked active, fix personnel
+            if (!currentState.scp087.teamActive && currentState.scp087.personnel.some(p => p.active)) {
+              console.log("[STATE-FIX] Team inactive but personnel marked active - correcting personnel");
+              correctedState.scp087.personnel = currentState.scp087.personnel.map(p => ({
+                ...p,
+                active: false,
+                assignedDClass: 0
+              }));
+              needsCorrection = true;
+            }
+
+            if (needsCorrection) {
+              set(correctedState);
+              addDClassEvent("System auto-corrected team deployment status inconsistencies", 'info', 'SCP-087');
+            }
+
+            return get(); // Return corrected state
+          };
+
+          // Apply corrections before proceeding
+          const correctedState = validateAndFixStates();
+          const newTeamActive = !correctedState.scp087.teamActive;
           
-          const newTeamActive = !state.scp087.teamActive;
+          console.log(`[DEBUG] Toggle team exploration: ${correctedState.scp087.teamActive} -> ${newTeamActive}`);
           
           if (newTeamActive) {
             // Deploying team - require minimum D-Class
             const requiredDClass = 4; // Minimum team requirement
             
-            if (state.dClassInventory.count < requiredDClass) {
-              addDClassEvent(`Deployment failed - need ${requiredDClass} D-Class for exploration team (have ${state.dClassInventory.count})`, 'warning', 'SCP-087');
+            if (correctedState.dClassInventory.count < requiredDClass) {
+              addDClassEvent(`Deployment failed - need ${requiredDClass} D-Class for exploration team (have ${correctedState.dClassInventory.count})`, 'warning', 'SCP-087');
               return;
             }
             
@@ -499,7 +555,7 @@ export const useGameStore = create<GameState & GameActions>()(
               scp087: {
                 ...state.scp087,
                 teamActive: true,
-                teamDeployed: true,
+                teamDeployed: true, // Always sync these states
                 personnel: state.scp087.personnel.map(p => ({
                   ...p,
                   active: true,
@@ -509,9 +565,10 @@ export const useGameStore = create<GameState & GameActions>()(
             }));
             
             addDClassEvent(`${requiredDClass} D-Class deployed to SCP-087 exploration teams`, 'critical', 'SCP-087');
+            console.log(`[DEBUG] Team deployed - Active: true, Deployed: true, Assigned D-Class: ${requiredDClass}`);
           } else {
             // Recalling team - return surviving D-Class
-            const survivingDClass = state.dClassInventory.assigned;
+            const survivingDClass = correctedState.dClassInventory.assigned;
             
             set((state) => ({
               ...state,
@@ -523,7 +580,7 @@ export const useGameStore = create<GameState & GameActions>()(
               scp087: {
                 ...state.scp087,
                 teamActive: false,
-                teamDeployed: false,
+                teamDeployed: false, // Always sync these states
                 personnel: state.scp087.personnel.map(p => ({
                   ...p,
                   active: false,
@@ -533,7 +590,11 @@ export const useGameStore = create<GameState & GameActions>()(
             }));
             
             addDClassEvent(`Exploration teams recalled - ${survivingDClass} D-Class returned to holding`, 'warning', 'SCP-087');
+            console.log(`[DEBUG] Team recalled - Active: false, Deployed: false, Returned D-Class: ${survivingDClass}`);
           }
+
+          // Final validation after state change
+          setTimeout(() => validateAndFixStates(), 100);
         },
 
         upgradePersonnel: (personnelId: string, upgradeType: string) => {
@@ -1350,9 +1411,57 @@ export const useGameStore = create<GameState & GameActions>()(
           }));
         },
 
-        // Game tick system
+        // Add periodic state validation in tick
+        validateTeamStates: () => {
+          const state = get();
+          let needsCorrection = false;
+          let corrections = [];
+
+          // Check if teamActive and teamDeployed are in sync
+          if (state.scp087.teamActive !== state.scp087.teamDeployed) {
+            corrections.push(`teamActive/teamDeployed sync (${state.scp087.teamActive}/${state.scp087.teamDeployed})`);
+            needsCorrection = true;
+          }
+
+          // Check if assigned D-Class matches team status
+          if (state.dClassInventory.assigned === 0 && state.scp087.teamActive) {
+            corrections.push("no assigned D-Class but team active");
+            needsCorrection = true;
+          }
+
+          if (state.dClassInventory.assigned > 0 && !state.scp087.teamActive) {
+            corrections.push("assigned D-Class but team inactive");
+            needsCorrection = true;
+          }
+
+          if (needsCorrection) {
+            console.log(`[STATE-VALIDATION] Corrections needed: ${corrections.join(', ')}`);
+            
+            // Apply corrections
+            const shouldBeActive = state.dClassInventory.assigned > 0;
+            
+            set((prevState) => ({
+              ...prevState,
+              scp087: {
+                ...prevState.scp087,
+                teamActive: shouldBeActive,
+                teamDeployed: shouldBeActive,
+                personnel: prevState.scp087.personnel.map(p => ({
+                  ...p,
+                  active: shouldBeActive,
+                  assignedDClass: shouldBeActive ? Math.ceil(prevState.dClassInventory.assigned / prevState.scp087.personnel.length) : 0
+                }))
+              }
+            }));
+
+            get().addDClassEvent(`System corrected team status inconsistencies: ${corrections.join(', ')}`, 'info', 'SCP-087');
+          }
+        },
         tick: () => {
           const state = get();
+          
+          // Validate team states every tick
+          get().validateTeamStates();
           
           set((prevState) => {
             const newState = { ...prevState };
@@ -1466,7 +1575,26 @@ export const useGameStore = create<GameState & GameActions>()(
                 if (currentState.dClassInventory.assigned <= 2 && currentState.dClassInventory.count <= 1) {
                   addDClassEvent("EMERGENCY PROTOCOL - Team automatically recalled due to critical D-Class shortage", 'critical', 'SCP-087');
                   console.log(`[DEBUG] Emergency recall triggered - assigned: ${currentState.dClassInventory.assigned}, count: ${currentState.dClassInventory.count}`);
-                  get().toggleTeamExploration();
+                  
+                  // Emergency recall: Force sync both states to false
+                  set((prevState) => ({
+                    ...prevState,
+                    scp087: {
+                      ...prevState.scp087,
+                      teamActive: false,
+                      teamDeployed: false,
+                      personnel: prevState.scp087.personnel.map(p => ({
+                        ...p,
+                        active: false,
+                        assignedDClass: 0
+                      }))
+                    },
+                    dClassInventory: {
+                      ...prevState.dClassInventory,
+                      count: prevState.dClassInventory.count + prevState.dClassInventory.assigned,
+                      assigned: 0
+                    }
+                  }));
                 }
               }
               
